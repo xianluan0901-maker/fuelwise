@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fuelwisee/features/user_account/screens/login_screen.dart';
 
-
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -10,9 +9,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-
 class _ProfileScreenState extends State<ProfileScreen> {
-
   String email = "";
   String name = "";
   String phone = "";
@@ -22,7 +19,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     loadProfile();
   }
-
 
   // Load user data
   void loadProfile() async {
@@ -34,7 +30,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-
   // Logout function
   void logout() async {
     final prefs = await SharedPreferences.getInstance();
@@ -43,49 +38,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (context) => const LoginScreen(),
-        ),
-            (route) => false,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
       );
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Profile"),
-      ),
+      appBar: AppBar(title: const Text("Profile")),
 
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            const CircleAvatar(
-              radius: 50,
-              child: Icon(
-                Icons.person,
-                size: 50,
-              ),
-            ),
+            const CircleAvatar(radius: 50, child: Icon(Icons.person, size: 50)),
             const SizedBox(height: 20),
             Text(
               name,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 10),
-            Text(
-              email,
-              style: const TextStyle(
-                fontSize: 16,
-              ),
-            ),
+            Text(email, style: const TextStyle(fontSize: 16)),
 
             const SizedBox(height: 30),
             Card(

@@ -3,7 +3,6 @@ import '../../fuel_price/screens/home_screen.dart';
 import 'login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
   @override
@@ -11,7 +10,6 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-
   // Text field controllers
   final nameController = TextEditingController();
   final emailController = TextEditingController();
@@ -33,11 +31,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Create Account",
-        ),
-      ),
+      appBar: AppBar(title: const Text("Create Account")),
 
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -45,10 +39,7 @@ class _SignupScreenState extends State<SignupScreen> {
           child: Column(
             children: [
               // App logo
-              const Icon(
-                Icons.local_gas_station,
-                size: 80,
-              ),
+              const Icon(Icons.local_gas_station, size: 80),
               const SizedBox(height: 20),
               // Name input
               TextField(
@@ -107,9 +98,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: signup,
-                  child: const Text(
-                    "Sign Up",
-                  ),
+                  child: const Text("Sign Up"),
                 ),
               ),
               const SizedBox(height: 15),
@@ -144,17 +133,14 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-
   // Signup function (Firebase will be added later)
   void signup() async {
-
     // ❗ Check empty fields
     if (nameController.text.isEmpty ||
         emailController.text.isEmpty ||
         phoneNumController.text.isEmpty ||
         passwordController.text.isEmpty ||
         confirmPasswordController.text.isEmpty) {
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill in all fields")),
       );
@@ -163,9 +149,9 @@ class _SignupScreenState extends State<SignupScreen> {
 
     // ❗ Check password match
     if (passwordController.text != confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password does not match")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Password does not match")));
       return;
     }
 
@@ -193,15 +179,9 @@ class _SignupScreenState extends State<SignupScreen> {
       );
     }
 
-
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const LoginScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
     );
   }
-
 }
-
-

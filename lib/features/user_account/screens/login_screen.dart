@@ -13,7 +13,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
@@ -61,22 +60,16 @@ class _LoginScreenState extends State<LoginScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-
-                const Text(
-                  "Don't have an account? ",
-                ),
+                const Text("Don't have an account? "),
 
                 GestureDetector(
-
                   onTap: () {
-
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const SignupScreen(),
                       ),
                     );
-
                   },
 
                   child: const Text(
@@ -109,9 +102,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final prefs = await SharedPreferences.getInstance();
 
-    String savedEmail = prefs.getString('email') ?.trim() ?? '';
+    String savedEmail = prefs.getString('email')?.trim() ?? '';
     String savedPassword = prefs.getString('password')?.trim() ?? '';
-
 
     // 👇 ADD HERE
     print("INPUT EMAIL: '$email'");
@@ -120,9 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
     print("SAVED EMAIL: '$savedEmail'");
     print("SAVED PASSWORD: '$savedPassword'");
 
-
     if (email == savedEmail && password == savedPassword) {
-
       await prefs.setBool('isLoggedIn', true);
 
       bool loggedIn = prefs.getBool('isLoggedIn') ?? false;
@@ -131,18 +121,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (context) => const MainNavigation(),
-          ),
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
         );
       }
-
     } else {
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Invalid email or password")),
       );
-
     }
   }
 }
