@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../fuel_price/screens/home_screen.dart';
 import 'login_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -146,60 +145,78 @@ class _SignupScreenState extends State<SignupScreen> {
 
 
   // Signup function (Firebase will be added later)
-  void signup() async {
-
-    // ❗ Check empty fields
-    if (nameController.text.isEmpty ||
-        emailController.text.isEmpty ||
-        phoneNumController.text.isEmpty ||
+  Future<void> signup() async {
+    // Check empty fields
+    if (nameController.text.trim().isEmpty ||
+        emailController.text.trim().isEmpty ||
+        phoneNumController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
         confirmPasswordController.text.isEmpty) {
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all fields")),
+        const SnackBar(
+          content: Text("Please fill in all fields"),
+        ),
       );
       return;
     }
 
-    // ❗ Check password match
+    // Check password match
     if (passwordController.text != confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password does not match")),
+        const SnackBar(
+          content: Text("Password does not match"),
+        ),
       );
       return;
     }
 
-    if (phoneNumController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter phone number")),
+    try {
+      final supabase = Supabase.instance.client;
+
+      // Create account in Supabase Auth
+      final response = await supabase.auth.signUp(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+        data: {
+          'full_name': nameController.text.trim(),
+          'phone_number': phoneNumController.text.trim(),
+        },
       );
-      return;
+
+      // Check whether account was created
+      if (response.user != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Account created! Please login."),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LoginScreen(),
+            ),
+          );
+        }
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Something went wrong."),
+          ),
+        );
+      }
     }
-
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString('name', nameController.text);
-    await prefs.setString('email', emailController.text);
-    await prefs.setString('phone', phoneNumController.text);
-    await prefs.setString('password', passwordController.text);
-    await prefs.setBool('isLoggedIn', false);
-
-    print("REGISTER EMAIL: ${emailController.text}");
-    print("REGISTER PASSWORD: ${passwordController.text}");
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Account created! Please login.")),
-      );
-    }
-
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const LoginScreen(),
-      ),
-    );
   }
 
 }

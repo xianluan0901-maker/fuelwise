@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:fuelwisee/shared/widgets/main_navigation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+//import 'package:fuelwisee/shared/widgets/main_navigation.dart';
 import '../../fuel_price/screens/home_screen.dart';
 import 'signup_screen.dart';
 import '../../../shared/widgets/main_navigation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -95,54 +95,64 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void login() async {
+  Future<void> login() async {
     final String email = emailController.text.trim();
-    final String password = passwordController.text.trim();
+    final String password = passwordController.text;
 
     // Check empty input
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter email and password")),
+        const SnackBar(
+          content: Text("Please enter email and password"),
+        ),
       );
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final supabase = Supabase.instance.client;
 
-    String savedEmail = prefs.getString('email') ?.trim() ?? '';
-    String savedPassword = prefs.getString('password')?.trim() ?? '';
+      // Login using Supabase Auth
+      final response = await supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
+      // Check whether login was successful
+      if (response.user != null) {
+        print("LOGIN SUCCESS");
+        print("USER ID: ${response.user!.id}");
+        print("EMAIL: ${response.user!.email}");
 
-    // 👇 ADD HERE
-    print("INPUT EMAIL: '$email'");
-    print("INPUT PASSWORD: '$password'");
-
-    print("SAVED EMAIL: '$savedEmail'");
-    print("SAVED PASSWORD: '$savedPassword'");
-
-
-    if (email == savedEmail && password == savedPassword) {
-
-      await prefs.setBool('isLoggedIn', true);
-
-      bool loggedIn = prefs.getBool('isLoggedIn') ?? false;
-      print("isLoggedIn set to: $loggedIn");
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MainNavigation(),
+            ),
+          );
+        }
+      }
+    } on AuthException catch (e) {
+      print("LOGIN ERROR: ${e.message}");
 
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const MainNavigation(),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
           ),
         );
       }
+    } catch (e) {
+      print("LOGIN ERROR: $e");
 
-    } else {
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Invalid email or password")),
-      );
-
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Something went wrong."),
+          ),
+        );
+      }
     }
   }
 }

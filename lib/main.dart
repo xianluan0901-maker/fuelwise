@@ -4,18 +4,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'features/user_account/screens/signup_screen.dart';
 import 'features/user_account/screens/login_screen.dart';
 import 'features/fuel_price/screens/home_screen.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
-
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: 'https://bqwvctzyijyfdefjrubj.supabase.co',
+    publishableKey: 'sb_publishable_CabkXlDKHbbDH_rsTBL_nQ_JGsMugax',
+  );
+
+  // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
 
-  //await prefs.clear();   // ADD THIS TEMPORARILY
   // Debug: Print all stored data
   Set<String> keys = prefs.getKeys();
   print("All stored keys: $keys");
+
   for (String key in keys) {
     print("$key: ${prefs.get(key)}");
   }
