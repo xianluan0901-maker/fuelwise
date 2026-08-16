@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'profile_screen.dart';
 import '../login_screen.dart';
+import '../../../vehicle/screens/vehicle_list_screen.dart';
 
 class ProfileMainScreen extends StatelessWidget {
   const ProfileMainScreen({super.key});
@@ -79,6 +80,42 @@ class ProfileMainScreen extends StatelessWidget {
 
             const SizedBox(height: 15),
 
+            // My Vehicles
+            Card(
+              child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFE9F4FF),
+                  child: Icon(
+                    Icons.directions_car_rounded,
+                    color: Color(0xFF1687E8),
+                  ),
+                ),
+                title: const Text(
+                  'My Vehicles',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Add vehicles and choose your default',
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 18,
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                      const VehicleListScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 15),
             // Logout
             Card(
               child: ListTile(
