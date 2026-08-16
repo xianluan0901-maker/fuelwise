@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import '../../fuel_price/screens/home_screen.dart';
 import 'login_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
+
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-
-  // Text field controllers
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneNumController = TextEditingController();
@@ -33,23 +31,20 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "Create Account",
-        ),
+        title: const Text("Create Account"),
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // App logo
               const Icon(
                 Icons.local_gas_station,
                 size: 80,
               ),
+
               const SizedBox(height: 20),
-              // Name input
+
               TextField(
                 controller: nameController,
                 decoration: const InputDecoration(
@@ -57,9 +52,9 @@ class _SignupScreenState extends State<SignupScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+
               const SizedBox(height: 15),
 
-              // Email input
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -68,6 +63,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+
               const SizedBox(height: 15),
 
               TextField(
@@ -78,9 +74,9 @@ class _SignupScreenState extends State<SignupScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+
               const SizedBox(height: 15),
 
-              // Password input
               TextField(
                 controller: passwordController,
                 obscureText: true,
@@ -89,9 +85,9 @@ class _SignupScreenState extends State<SignupScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+
               const SizedBox(height: 15),
 
-              // Confirm password input
               TextField(
                 controller: confirmPasswordController,
                 obscureText: true,
@@ -100,23 +96,24 @@ class _SignupScreenState extends State<SignupScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+
               const SizedBox(height: 30),
-              // Signup button
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: signup,
-                  child: const Text(
-                    "Sign Up",
-                  ),
+                  child: const Text("Sign Up"),
                 ),
               ),
+
               const SizedBox(height: 15),
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text("Already have an account? "),
+
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -143,8 +140,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-
-  // Signup function (Firebase will be added later)
   Future<void> signup() async {
     // Check empty fields
     if (nameController.text.trim().isEmpty ||
@@ -218,7 +213,4 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     }
   }
-
 }
-
-

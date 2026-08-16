@@ -13,7 +13,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
@@ -61,22 +60,16 @@ class _LoginScreenState extends State<LoginScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-
-                const Text(
-                  "Don't have an account? ",
-                ),
+                const Text("Don't have an account? "),
 
                 GestureDetector(
-
                   onTap: () {
-
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const SignupScreen(),
                       ),
                     );
-
                   },
 
                   child: const Text(
