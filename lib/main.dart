@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'features/user_account/screens/login_screen.dart';
-import 'shared/widgets/main_navigation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,19 +11,11 @@ Future<void> main() async {
     publishableKey: 'sb_publishable_CabkXlDKHbbDH_rsTBL_nQ_JGsMugax',
   );
 
-  final session = Supabase.instance.client.auth.currentSession;
-
-  runApp(
-    MainApp(
-      isLoggedIn: session != null,
-    ),
-  );
+  runApp(const MainApp());
 }
 
 class MainApp extends StatelessWidget {
-  final bool isLoggedIn;
-
-  const MainApp({super.key, required this.isLoggedIn});
+  const MainApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -35,21 +26,25 @@ class MainApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'FuelWise MY',
+
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: backgroundColour,
+
         colorScheme: ColorScheme.fromSeed(
           seedColor: primaryBlue,
           primary: primaryBlue,
           secondary: const Color(0xFF52B6F4),
           surface: Colors.white,
         ),
+
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           foregroundColor: darkBlue,
           elevation: 0,
           centerTitle: false,
         ),
+
         cardTheme: CardThemeData(
           color: Colors.white,
           elevation: 0,
@@ -58,6 +53,7 @@ class MainApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
           ),
         ),
+
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryBlue,
@@ -69,17 +65,27 @@ class MainApp extends StatelessWidget {
             ),
           ),
         ),
+
         textTheme: const TextTheme(
           headlineSmall: TextStyle(
             color: darkBlue,
             fontWeight: FontWeight.bold,
           ),
-          titleLarge: TextStyle(color: darkBlue, fontWeight: FontWeight.bold),
-          titleMedium: TextStyle(color: darkBlue, fontWeight: FontWeight.w600),
-          bodyMedium: TextStyle(color: Color(0xFF61758A)),
+          titleLarge: TextStyle(
+            color: darkBlue,
+            fontWeight: FontWeight.bold,
+          ),
+          titleMedium: TextStyle(
+            color: darkBlue,
+            fontWeight: FontWeight.w600,
+          ),
+          bodyMedium: TextStyle(
+            color: Color(0xFF61758A),
+          ),
         ),
       ),
-      home: isLoggedIn ? const MainNavigation() : const LoginScreen(),
+
+      home: const LoginScreen(),
     );
   }
 }
