@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/fuel_price_model.dart';
 import '../services/fuel_cache_service.dart';
 import '../services/fuel_price_service.dart';
+
+import 'fuel_history_screen.dart';
+import '../widgets/fuel_trend_chart.dart';
+import 'fuel_calculator_screen.dart';
 
 enum MalaysiaRegion { west, east }
 
@@ -19,6 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final FuelCacheService _fuelCacheService = FuelCacheService();
 
   FuelPrice? _latestPrice;
+  List<FuelPrice> _fuelHistory = [];
+  String _selectedFuel = 'RON95';
 
   MalaysiaRegion _selectedRegion = MalaysiaRegion.west;
 
@@ -32,6 +39,20 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadLatestPrice();
   }
 
+  String get _userName {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    final fullName =
+    user?.userMetadata?['full_name']?.toString().trim();
+
+    if (fullName == null || fullName.isEmpty) {
+      return 'User';
+    }
+
+    // Display only the first name.
+    return fullName.split(' ').first;
+  }
+
   Future<void> _loadLatestPrice() async {
     setState(() {
       _isLoading = true;
@@ -39,7 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final latestPrice = await _fuelPriceService.getLatestFuelPrice();
+      final history = await _fuelPriceService.getFuelPriceHistory();
+      final latestPrice = history.first;
 
       await _fuelCacheService.saveLatestPrice(latestPrice);
 
@@ -47,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _latestPrice = latestPrice;
+        _fuelHistory = history;
         _isUsingCachedData = false;
         _isLoading = false;
       });
@@ -86,6 +109,15 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       return 'Good Evening';
     }
+  }
+
+  void _openFuelCalculator() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FuelCalculatorScreen(),
+      ),
+    );
   }
 
   @override
@@ -181,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${_getGreeting()} 👋',
+                      '${_getGreeting()}, $_userName 👋',
                       style: const TextStyle(
                         color: Color(0xFF153B60),
                         fontSize: 24,
@@ -305,38 +337,33 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const Expanded(
               child: Text(
-                'Current Fuel Prices',
+                'Fuel Price Today',
                 style: TextStyle(
                   color: Color(0xFF153B60),
-                  fontSize: 20,
+                  fontSize: 17,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            Text(
-              'RM / Litre',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            Material(
+              color: const Color(0xFFE2F8F3),
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _openFuelCalculator,
+                child: const Padding(
+                  padding: EdgeInsets.all(9),
+                  child: Icon(
+                    Icons.calculate_rounded,
+                    color: Color(0xFF10A88B),
+                    size: 22,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 5),
-        Text(
-          'Effective ${DateFormat('dd MMM yyyy').format(price.date)}',
-          style: const TextStyle(color: Color(0xFF778B9C), fontSize: 13),
-        ),
-        if (_isUsingCachedData) ...[
-          const SizedBox(height: 7),
-          const Row(
-            children: [
-              Icon(Icons.cloud_off_outlined, size: 15, color: Colors.orange),
-              SizedBox(width: 5),
-              Text(
-                'Showing the last saved prices',
-                style: TextStyle(color: Colors.orange, fontSize: 12),
-              ),
-            ],
-          ),
-        ],
+
         const SizedBox(height: 17),
         GridView.count(
           crossAxisCount: 2,
@@ -391,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _showHistoryMessage,
+                onPressed: _openFuelHistory,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF1687E8),
                   side: const BorderSide(color: Color(0xFF1687E8)),
@@ -500,7 +527,48 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  double _selectedFuelPrice(FuelPrice price) {
+    switch (_selectedFuel) {
+      case 'RON97':
+        return price.ron97;
+
+      case 'Diesel':
+        return price.dieselForRegion(_isEastMalaysia);
+
+      case 'RON95':
+      default:
+        return price.ron95;
+    }
+  }
+
   Widget _buildTrendPreview(FuelPrice price) {
+    final hasAnalysis = _fuelHistory.length >= 2;
+
+    double difference = 0;
+    double percentage = 0;
+
+    if (hasAnalysis) {
+      // History is ordered newest first.
+      final latestPrice = _selectedFuelPrice(_fuelHistory[0]);
+      final previousPrice = _selectedFuelPrice(_fuelHistory[1]);
+
+      difference = latestPrice - previousPrice;
+
+      if (previousPrice != 0) {
+        percentage = (difference / previousPrice) * 100;
+      }
+    }
+
+    const tolerance = 0.001;
+    final unchanged = difference.abs() < tolerance;
+    final increased = difference > 0;
+
+    final trendColour = unchanged
+        ? Colors.grey
+        : increased
+        ? Colors.redAccent
+        : const Color(0xFF3563FF);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -530,36 +598,84 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              Icon(Icons.show_chart_rounded, color: Color(0xFF1687E8)),
+              Icon(
+                Icons.show_chart_rounded,
+                color: Color(0xFF1687E8),
+              ),
             ],
           ),
           const SizedBox(height: 5),
-          const Text(
-            'Latest fuel-price overview',
-            style: TextStyle(color: Color(0xFF8393A1), fontSize: 12),
-          ),
-          const SizedBox(height: 19),
-          SizedBox(
-            height: 105,
-            child: CustomPaint(
-              painter: FuelTrendPainter(),
-              child: const SizedBox.expand(),
+          Text(
+            '$_selectedFuel price trend',
+            style: const TextStyle(
+              color: Color(0xFF8393A1),
+              fontSize: 12,
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Previous',
-                style: TextStyle(color: Color(0xFF8A99A6), fontSize: 10),
+          const SizedBox(height: 16),
+
+          SizedBox(
+            height: 130,
+            child: _fuelHistory.isEmpty
+                ? const Center(
+              child: Text(
+                'Trend unavailable while offline',
               ),
-              Text(
-                'Current',
-                style: TextStyle(color: Color(0xFF8A99A6), fontSize: 10),
-              ),
-            ],
+            )
+                : FuelTrendChart(
+              prices: _fuelHistory.take(16).toList(),
+
+              // Home displays only one selected fuel.
+              fuelTypes: [_selectedFuel],
+
+              isEastMalaysia: _isEastMalaysia,
+              compact: true,
+            ),
           ),
+
+          const SizedBox(height: 14),
+
+          if (hasAnalysis)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  unchanged
+                      ? '0.0%'
+                      : '${increased ? '+' : ''}'
+                      '${percentage.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    color: trendColour,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    unchanged
+                        ? '$_selectedFuel remained unchanged compared with last week.'
+                        : '$_selectedFuel '
+                        '${increased ? 'increased' : 'decreased'} '
+                        'by RM${difference.abs().toStringAsFixed(2)} '
+                        'compared with last week.',
+                    style: const TextStyle(
+                      color: Color(0xFF8393A1),
+                      fontSize: 11,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            const Text(
+              'Not enough information to calculate the weekly trend.',
+              style: TextStyle(
+                color: Color(0xFF8393A1),
+                fontSize: 11,
+              ),
+            ),
         ],
       ),
     );
@@ -589,7 +705,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
               _buildFuelOption('RON95'),
-              _buildFuelOption('BUDI95'),
               _buildFuelOption('RON97'),
               _buildFuelOption('Diesel'),
             ],
@@ -609,19 +724,20 @@ class _HomeScreenState extends State<HomeScreen> {
       title: Text(fuelName),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: () {
-        Navigator.pop(context);
+        setState(() {
+          _selectedFuel = fuelName;
+        });
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$fuelName selected')));
+        Navigator.pop(context);
       },
     );
   }
 
-  void _showHistoryMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('The fuel-price history screen will be connected next.'),
+  void _openFuelHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FuelHistoryScreen(),
       ),
     );
   }
