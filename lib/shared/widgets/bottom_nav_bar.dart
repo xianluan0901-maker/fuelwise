@@ -2,23 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../../features/fuel_price/screens/home_screen.dart';
 import '../../features/user_account/screens/profile/profile_screen.dart';
-
+import 'package:fuelwisee/features/fuel_station/screens/station_list_screen.dart';
 class BottomNavBar extends StatefulWidget {
   const BottomNavBar({super.key});
+
   @override
   State<BottomNavBar> createState() => _BottomNavBarState();
 }
 
 class _BottomNavBarState extends State<BottomNavBar> {
   int currentIndex = 0;
+
   final pages = [
     const HomeScreen(),
-    const Center(child: Text("Station")),
-
+    const StationListScreen(),
     const Center(child: Text("Payment")),
-
     const Center(child: Text("Reward")),
-
     const ProfileScreen(),
   ];
 
@@ -35,23 +34,27 @@ class _BottomNavBarState extends State<BottomNavBar> {
             currentIndex = index;
           });
         },
-
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.local_gas_station),
             label: "Fuel",
           ),
-
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: "Station"),
-
-          BottomNavigationBarItem(icon: Icon(Icons.payment), label: "Payment"),
-
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map),
+            label: "Station",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.payment),
+            label: "Payment",
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.card_giftcard),
             label: "Reward",
           ),
-
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: "Profile",
+          ),
         ],
       ),
     );

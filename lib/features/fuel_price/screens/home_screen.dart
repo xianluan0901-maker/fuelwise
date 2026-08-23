@@ -10,6 +10,7 @@ import 'fuel_history_screen.dart';
 import '../widgets/fuel_trend_chart.dart';
 import 'fuel_calculator_screen.dart';
 
+
 enum MalaysiaRegion { west, east }
 
 class HomeScreen extends StatefulWidget {
