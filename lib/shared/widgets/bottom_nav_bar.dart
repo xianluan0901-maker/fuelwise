@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../features/fuel_price/screens/home_screen.dart';
 import '../../features/user_account/screens/profile/profile_screen.dart';
 import 'package:fuelwisee/features/fuel_station/screens/station_list_screen.dart';
+import '../../features/payment/screens/payment_history_screen.dart';
 class BottomNavBar extends StatefulWidget {
   const BottomNavBar({super.key});
 
@@ -16,7 +17,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
   final pages = [
     const HomeScreen(),
     const StationListScreen(),
-    const Center(child: Text("Payment")),
+    const PaymentHistoryScreen(),
     const Center(child: Text("Reward")),
     const ProfileScreen(),
   ];
