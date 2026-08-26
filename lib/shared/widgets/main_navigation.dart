@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../features/fuel_price/screens/home_screen.dart';
 import '../../features/user_account/screens/profile/profile_main_screen.dart';
 import '../../features/fuel_station/screens/station_list_screen.dart';
+import '../../features/payment/screens/payment_history_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -18,7 +19,7 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _pages = const [
     HomeScreen(),
     StationListScreen(),
-    Center(child: Text('Payment')),
+    PaymentHistoryScreen(),
     Center(child: Text('Reward')),
     ProfileMainScreen(),
   ];
