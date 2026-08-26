@@ -1,7 +1,10 @@
+// features/fuel_station/screens/station_detail_screen.dart
+
 import 'package:flutter/material.dart';
 
 import '../models/fuel_station_model.dart';
 import '../services/fuel_station_service.dart';
+import '../../payment/screens/payment_page.dart';  // ✅ 已经有这个 import 了
 
 class StationDetailScreen extends StatefulWidget {
   final FuelStation station;
@@ -45,7 +48,6 @@ class _StationDetailScreenState
 
       if (!mounted) return;
 
-      // DEBUG: Print the complete Google Place Details response
       print('PLACE DETAILS: $result');
 
       setState(() {
@@ -75,27 +77,15 @@ class _StationDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    // ----------------------------------------------------------
-    // Station Name
-    // ----------------------------------------------------------
-
     final name =
         details?['displayName']?['text']
             ?.toString() ??
             widget.station.stationName;
 
-    // ----------------------------------------------------------
-    // Address
-    // ----------------------------------------------------------
-
     final address =
         details?['formattedAddress']
             ?.toString() ??
             widget.station.stationAddress;
-
-    // ----------------------------------------------------------
-    // Phone Number
-    // ----------------------------------------------------------
 
     final phone =
         details?['nationalPhoneNumber']
@@ -103,30 +93,14 @@ class _StationDetailScreenState
             details?['internationalPhoneNumber']
                 ?.toString();
 
-    // ----------------------------------------------------------
-    // Opening Hours
-    // ----------------------------------------------------------
-
     final openingHours =
     details?['regularOpeningHours']
     ?['weekdayDescriptions'];
 
-    // ----------------------------------------------------------
-    // Photos
-    // ----------------------------------------------------------
-
     final photos =
     details?['photos'] as List<dynamic>?;
 
-    // ==========================================================
-    // SCREEN
-    // ==========================================================
-
     return Scaffold(
-      // ========================================================
-      // APP BAR
-      // ========================================================
-
       appBar: AppBar(
         title: const Text(
           'Station Details',
@@ -160,10 +134,6 @@ class _StationDetailScreenState
         ],
       ),
 
-      // ========================================================
-      // BODY
-      // ========================================================
-
       body: isLoading
           ? const Center(
         child: CircularProgressIndicator(),
@@ -173,10 +143,6 @@ class _StationDetailScreenState
           crossAxisAlignment:
           CrossAxisAlignment.start,
           children: [
-            // ==================================================
-            // GOOGLE PHOTO
-            // ==================================================
-
             if (photos != null &&
                 photos.isNotEmpty)
               SizedBox(
@@ -196,20 +162,12 @@ class _StationDetailScreenState
             else
               _buildPhotoFallback(),
 
-            // ==================================================
-            // STATION INFORMATION
-            // ==================================================
-
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment:
                 CrossAxisAlignment.start,
                 children: [
-                  // ==================================================
-                  // NAME
-                  // ==================================================
-
                   Text(
                     name,
                     style: const TextStyle(
@@ -219,10 +177,6 @@ class _StationDetailScreenState
                   ),
 
                   const SizedBox(height: 16),
-
-                  // ==================================================
-                  // ADDRESS
-                  // ==================================================
 
                   Row(
                     crossAxisAlignment:
@@ -243,10 +197,6 @@ class _StationDetailScreenState
                       ),
                     ],
                   ),
-
-                  // ==================================================
-                  // PHONE NUMBER
-                  // ==================================================
 
                   if (phone != null &&
                       phone.isNotEmpty) ...[
@@ -273,10 +223,6 @@ class _StationDetailScreenState
                   ],
 
                   const SizedBox(height: 28),
-
-                  // ==================================================
-                  // OPENING HOURS
-                  // ==================================================
 
                   const Text(
                     'Opening Hours',
@@ -310,9 +256,9 @@ class _StationDetailScreenState
 
                   const SizedBox(height: 30),
 
-                  // ==================================================
-                  // FAVOURITE
-                  // ==================================================
+                  // ============================================
+                  // FAVOURITE BUTTON
+                  // ============================================
 
                   SizedBox(
                     width: double.infinity,
@@ -338,9 +284,9 @@ class _StationDetailScreenState
 
                   const SizedBox(height: 12),
 
-                  // ==================================================
-                  // PAYMENT
-                  // ==================================================
+                  // ============================================
+                  // PAYMENT BUTTON ✅ 已经连接支付页面
+                  // ============================================
 
                   SizedBox(
                     width: double.infinity,
@@ -351,21 +297,31 @@ class _StationDetailScreenState
                       ),
                       label: const Text(
                         'Proceed to Payment',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       onPressed: () {
-                        // TODO:
-                        // Connect your existing
-                        // PaymentScreen here.
-
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Payment page can be connected here.',
+                        // ✅ 跳转到支付页面
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PaymentPage(
+                              placeId: widget.station.placeId,
+                              stationName: name,
+                              stationAddress: address,
                             ),
                           ),
                         );
                       },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1687E8),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                 ],

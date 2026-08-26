@@ -12,7 +12,7 @@ class FuelPriceService {
   Future<List<FuelPrice>> getFuelPriceHistory() async {
     final response = await http
         .get(Uri.parse(_apiUrl), headers: const {'Accept': 'application/json'})
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
       throw Exception(
