@@ -64,7 +64,10 @@ class Voucher {
   final String discountType; // 'fixed' or 'percentage'
   final int expiryDays;
   final bool isActive;
+  final String minimumTier;
+  final String? stationBrand;
   final DateTime createdAt;
+
 
   const Voucher({
     required this.id,
@@ -75,6 +78,8 @@ class Voucher {
     required this.discountType,
     required this.expiryDays,
     required this.isActive,
+    this.minimumTier = 'blue',
+    this.stationBrand,
     required this.createdAt,
   });
 
@@ -88,6 +93,8 @@ class Voucher {
       discountType: json['discount_type'].toString(),
       expiryDays: json['expiry_days'] ?? 30,
       isActive: json['is_active'] ?? true,
+      minimumTier: json['minimum_tier']?.toString() ?? 'blue',
+      stationBrand: json['station_brand']?.toString(),
       createdAt: DateTime.parse(json['created_at'].toString()),
     );
   }
