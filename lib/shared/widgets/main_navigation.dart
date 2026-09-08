@@ -5,6 +5,7 @@ import '../../features/fuel_price/screens/home_screen.dart';
 import '../../features/user_account/screens/profile/profile_main_screen.dart';
 import '../../features/fuel_station/screens/station_list_screen.dart';
 import '../../features/payment/screens/payment_history_screen.dart';
+import '../../features/reward/screens/reward_home_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -16,19 +17,41 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    HomeScreen(),
-    StationListScreen(),
-    PaymentHistoryScreen(),
-    Center(child: Text('Reward')),
-    ProfileMainScreen(),
+  final List<Widget?> _pages = [
+    const HomeScreen(),
+    null,
+    null,
+    null,
+    null,
   ];
+
+  Widget _createPage(int index) {
+    switch (index) {
+      case 0:
+        return const HomeScreen();
+      case 1:
+        return const StationListScreen();
+      case 2:
+        return const PaymentHistoryScreen();
+      case 3:
+        return const RewardHomeScreen();
+      case 4:
+        return const ProfileMainScreen();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages
+            .map((page) => page ?? const SizedBox.shrink())
+            .toList(),
+      ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Container(
@@ -58,6 +81,15 @@ class _MainNavigationState extends State<MainNavigation> {
               selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
               onTap: (index) {
                 setState(() {
+                  if (index == 3) {
+                    // Recreate Reward so the latest points are loaded.
+                    _pages[index] = RewardHomeScreen(
+                      key: UniqueKey(),
+                    );
+                  } else {
+                    _pages[index] ??= _createPage(index);
+                  }
+
                   _currentIndex = index;
                 });
               },

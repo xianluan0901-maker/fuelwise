@@ -331,6 +331,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFuelDashboard(FuelPrice price) {
     final dieselPrice = price.dieselForRegion(_isEastMalaysia);
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+
+    final gridColumns = isLandscape
+        ? (screenWidth >= 700 ? 4 : 3)
+        : 2;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -367,11 +375,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
         const SizedBox(height: 17),
         GridView.count(
-          crossAxisCount: 2,
+          crossAxisCount: gridColumns,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 13,
           mainAxisSpacing: 13,
+
+          // Use a fixed, compact height in landscape.
+          mainAxisExtent: isLandscape ? 150 : null,
+
+          // Continue using the original ratio in portrait.
           childAspectRatio: 1.18,
           children: [
             _buildFuelCard(
@@ -683,32 +696,69 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showFuelSelection() {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(22, 5, 22, 30),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Select Fuel Type',
-                style: TextStyle(
-                  color: Color(0xFF153B60),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+        final screenHeight =
+            MediaQuery.sizeOf(context).height;
+
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: screenHeight * 0.85,
+            ),
+            padding: const EdgeInsets.fromLTRB(
+              22,
+              12,
+              22,
+              20,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(26),
               ),
-              const SizedBox(height: 12),
-              _buildFuelOption('RON95'),
-              _buildFuelOption('RON97'),
-              _buildFuelOption('Diesel'),
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 30,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4F5963),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Select Fuel Type',
+                    style: TextStyle(
+                      color: Color(0xFF153B60),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _buildFuelOption('RON95'),
+                        _buildFuelOption('RON97'),
+                        _buildFuelOption('Diesel'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
