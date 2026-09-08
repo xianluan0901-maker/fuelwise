@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -274,17 +273,32 @@ class _RedemptionHistoryScreenState
                       ),
                     ),
                     const SizedBox(height: 5),
+
                     Text(
-                      DateFormat(
-                        'dd MMM yyyy, hh:mm a',
-                      ).format(
-                        item.redeemedAt.toLocal(),
-                      ),
-                      style: const TextStyle(
-                        color: Color(0xFF8292A2),
+                      'Expires: ${DateFormat('dd MMM yyyy').format(
+                        item.expiryDate.toLocal(),
+                      )}',
+                      style: TextStyle(
+                        color: item.isExpired
+                            ? const Color(0xFFE05252)
+                            : const Color(0xFF8292A2),
                         fontSize: 11,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+
+                    if (item.isUsed && item.usedAt != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Used: ${DateFormat('dd MMM yyyy, hh:mm a').format(
+                          item.usedAt!.toLocal(),
+                        )}',
+                        style: const TextStyle(
+                          color: Color(0xFF8292A2),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -423,20 +437,6 @@ class _RedemptionHistoryScreenState
                             letterSpacing: 1,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            _copyVoucherCode(
-                              item.code,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.copy_rounded,
-                          ),
-                          label: const Text(
-                            'Copy Code',
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -453,17 +453,22 @@ class _RedemptionHistoryScreenState
                   ),
                   _buildSheetRow(
                     'Redeemed',
-                    DateFormat(
-                      'dd MMM yyyy, hh:mm a',
-                    ).format(
+                    DateFormat('dd MMM yyyy, hh:mm a').format(
                       item.redeemedAt.toLocal(),
                     ),
                   ),
+
+                  if (item.usedAt != null)
+                    _buildSheetRow(
+                      'Used',
+                      DateFormat('dd MMM yyyy, hh:mm a').format(
+                        item.usedAt!.toLocal(),
+                      ),
+                    ),
+
                   _buildSheetRow(
                     'Expires',
-                    DateFormat(
-                      'dd MMM yyyy',
-                    ).format(
+                    DateFormat('dd MMM yyyy').format(
                       item.expiryDate.toLocal(),
                     ),
                   ),
@@ -536,22 +541,6 @@ class _RedemptionHistoryScreenState
     );
   }
 
-  Future<void> _copyVoucherCode(
-      String code,
-      ) async {
-    await Clipboard.setData(
-      ClipboardData(text: code),
-    );
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text('Voucher code copied'),
-      ),
-    );
-  }
 
   String _getStatus(UserVoucher item) {
     if (item.isUsed) return 'Used';
