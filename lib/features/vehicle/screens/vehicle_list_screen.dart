@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/vehicle_model.dart';
 import '../services/vehicle_service.dart';
 import 'vehicle_form_screen.dart';
+import 'vehicle_detail_screen.dart';
 
 class VehicleListScreen extends StatefulWidget {
   const VehicleListScreen({super.key});
@@ -101,6 +102,32 @@ class _VehicleListScreenState
         const SnackBar(
           content: Text(
             'Vehicle updated successfully.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openVehicleDetails(
+      Vehicle vehicle,
+      ) async {
+    final deleted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VehicleDetailScreen(
+          vehicle: vehicle,
+        ),
+      ),
+    );
+
+    // Refresh for both editing and deleting.
+    await _loadVehicles();
+
+    if (deleted == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Vehicle deleted successfully.',
           ),
         ),
       );
@@ -350,7 +377,13 @@ class _VehicleListScreenState
           Padding(
             padding:
             const EdgeInsets.only(bottom: 14),
-            child: _buildVehicleCard(vehicle),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                _openVehicleDetails(vehicle);
+              },
+              child: _buildVehicleCard(vehicle),
+            ),
           ),
       ],
     );
@@ -579,10 +612,6 @@ class _VehicleListScreenState
                         _setDefaultVehicle(vehicle);
                         break;
 
-                      case 'edit':
-                        _openEditVehicle(vehicle);
-                        break;
-
                       case 'delete':
                         _confirmDelete(vehicle);
                         break;
@@ -604,19 +633,6 @@ class _VehicleListScreenState
                           ],
                         ),
                       ),
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.edit_rounded,
-                            color: Color(0xFF1687E8),
-                          ),
-                          SizedBox(width: 10),
-                          Text('Edit'),
-                        ],
-                      ),
-                    ),
                     const PopupMenuItem(
                       value: 'delete',
                       child: Row(
