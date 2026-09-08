@@ -46,9 +46,12 @@ class _StationDetailScreenState
         widget.station.placeId,
       );
 
-      if (!mounted) return;
-
-      print('PLACE DETAILS: $result');
+      final photos = result['photos'] as List<dynamic>?;
+      if (photos != null && photos.isNotEmpty) {
+        print('✅ PHOTO NAME: ${photos.first['name']}');
+      } else {
+        print('❌ NO PHOTO FOUND');
+      }
 
       setState(() {
         details = result;
