@@ -177,7 +177,7 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
         const SizedBox(height: 16),
         _buildChartSection(filteredHistory),
         const SizedBox(height: 18),
-        _buildAnalysisSection(filteredHistory),
+        _buildAnalysisSection(),
         const SizedBox(height: 22),
         const Text(
           'Price History',
@@ -366,16 +366,12 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
     );
   }
 
-  Widget _buildAnalysisSection(
-      List<FuelPrice> filteredHistory,
-      ) {
-    if (filteredHistory.length < 2) {
+  Widget _buildAnalysisSection() {
+    if (_history.length < 2) {
       return const SizedBox.shrink();
     }
-
-    // History is newest first.
-    final newest = filteredHistory.first;
-    final oldest = filteredHistory.last;
+    final newest = _history.first;
+    final previous = _history[1];
 
     return Container(
       width: double.infinity,
@@ -398,7 +394,7 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
               ),
               SizedBox(width: 8),
               Text(
-                'Trend Analysis',
+                'Latest Price Change',
                 style: TextStyle(
                   color: Color(0xFF153B60),
                   fontSize: 16,
@@ -407,13 +403,22 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Text(
+            '${DateFormat('d MMM yyyy').format(newest.date)} vs '
+            '${DateFormat('d MMM yyyy').format(previous.date)}',
+            style: const TextStyle(
+              color: Color(0xFF718096),
+              fontSize: 11,
+            ),
+          ),
           const SizedBox(height: 14),
 
           for (final fuelType in _selectedFuels)
             _buildFuelAnalysis(
               fuelType: fuelType,
               latestPrice: _priceFor(newest, fuelType),
-              oldestPrice: _priceFor(oldest, fuelType),
+              previousPrice: _priceFor(previous, fuelType),
             ),
         ],
       ),
@@ -423,13 +428,13 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
   Widget _buildFuelAnalysis({
     required String fuelType,
     required double latestPrice,
-    required double oldestPrice,
+    required double previousPrice,
   }) {
-    final difference = latestPrice - oldestPrice;
+    final difference = latestPrice - previousPrice;
 
-    final percentage = oldestPrice == 0
+    final percentage = previousPrice == 0
         ? 0.0
-        : (difference / oldestPrice) * 100;
+        : (difference / previousPrice) * 100;
 
     const tolerance = 0.001;
     final unchanged = difference.abs() < tolerance;
@@ -442,10 +447,10 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
         : const Color(0xFF3563FF);
 
     final description = unchanged
-        ? '$fuelType remained unchanged during this period.'
+        ? '$fuelType is unchanged from the previous update.'
         : '$fuelType ${increased ? 'increased' : 'decreased'} by '
-        'RM${difference.abs().toStringAsFixed(2)} '
-        'during this period.';
+        'RM${difference.abs().toStringAsFixed(2)}/L '
+        'from the previous update.';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 13),

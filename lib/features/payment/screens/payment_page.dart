@@ -1130,12 +1130,26 @@ class _PaymentPageState extends State<PaymentPage> {
     setState(() => _isProcessing = true);
 
     try {
+      final selectedVehicle = _selectedVehicle;
+
+      if (selectedVehicle == null) {
+        _showError('Please select a vehicle.');
+        return;
+      }
+
+      final serverVehicleId =
+      await _vehicleService.prepareVehicleForPayment(
+        selectedVehicle.id,
+      );
+
+      if (!mounted) return;
+
       final paymentData = {
         'userId': user.id,
         'placeId': widget.placeId,
         'stationName': widget.stationName,
         'stationAddress': widget.stationAddress,
-        'vehicleId': _selectedVehicle?.id,
+        'vehicleId': serverVehicleId,
         'pumpNumber': _pumpNumber!,
         'fuelType': _selectedFuelType!.label,
         'quantityLiters': _liters,

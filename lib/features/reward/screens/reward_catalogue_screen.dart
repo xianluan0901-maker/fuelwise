@@ -280,7 +280,7 @@ class _RewardCatalogueScreenState
                     BorderRadius.circular(12),
                   ),
                   child: const Text(
-                    'Your tier',
+                    'Tier unlocked',
                     style: TextStyle(
                       color: Color(0xFF2EAD72),
                       fontSize: 10,
@@ -304,7 +304,7 @@ class _RewardCatalogueScreenState
               gridDelegate:
               const SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 230,
-                mainAxisExtent: 315,
+                mainAxisExtent: 250,
                 crossAxisSpacing: 13,
                 mainAxisSpacing: 13,
               ),
