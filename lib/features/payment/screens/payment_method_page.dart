@@ -904,7 +904,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   }
 
   // ============================================================
-  // Payment Processing
+  // ⭐ Payment Processing（只加了 vehicleName 和 vehiclePlate）
   // ============================================================
 
   void _handlePayment() async {
@@ -951,6 +951,13 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
         widget.paymentData['stationAddress'],
         vehicleId:
         widget.paymentData['vehicleId'],
+
+        // ⭐ 新增：传递车辆名称和车牌
+        vehicleName:
+        widget.paymentData['vehicleName'],
+        vehiclePlate:
+        widget.paymentData['vehiclePlate'],
+
         pumpNumber:
         widget.paymentData['pumpNumber'],
         fuelType:

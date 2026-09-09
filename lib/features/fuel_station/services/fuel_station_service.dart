@@ -5,7 +5,7 @@ import 'package:fuelwisee/features/fuel_station/models/fuel_station_model.dart';
 
 class FuelStationService {
   static const String apiKey =
-      'AIzaSyDSQNknVhOAC8Sd_Dd5pv4X2UA_K8E_-J0';
+      'AIzaSyArrvj4hHs0Siwe9ZDSw6ewVy9pkxSU_l0';
 
   static const String _placesBase =
       'https://places.googleapis.com/v1';
