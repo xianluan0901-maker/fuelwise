@@ -21,7 +21,6 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 30, 20, 20),
@@ -30,7 +29,6 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-
                     '-RM${transaction.totalAmount.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 32,
@@ -40,7 +38,7 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    transaction.status.toUpperCase(), // "SUCCESSFUL"
+                    transaction.status.toUpperCase(),
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.bold,
@@ -50,19 +48,20 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
-
-
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 children: [
                   _buildDetailRow('Transaction Type', 'Fuel Purchase'),
                   _buildDetailRow('Transaction Details', '${transaction.fuelType} - Pump ${transaction.pumpNumber}'),
+                  // ⭐ 新增：车辆信息
+                  if (transaction.vehicleName != null && transaction.vehiclePlate != null)
+                    _buildDetailRow('Vehicle', '${transaction.vehicleName} (${transaction.vehiclePlate})'),
                   _buildDetailRow('Payment Method', transaction.paymentMethod),
-                  _buildDetailRow('Date/Time', _formatFullDate(transaction.createdAt)), // 红框 1
+                  _buildDetailRow('Date/Time', _formatFullDate(transaction.createdAt)),
                   _buildDetailRow('Card No.', 'E-Wallet'),
-                  _buildDetailRow('Actual Entry', transaction.stationName), // 红框 2
-                  _buildDetailRow('Actual Exit', '${transaction.stationName}\n${_formatFullDate(transaction.createdAt)}'), // 红框 3
+                  _buildDetailRow('Actual Entry', transaction.stationName),
+                  _buildDetailRow('Actual Exit', '${transaction.stationName}\n${_formatFullDate(transaction.createdAt)}'),
                   _buildDetailRow('Wallet Ref', transaction.transactionId),
                   _buildDetailRow('Status', transaction.status),
                   _buildDetailRow('Transaction No.', transaction.id),
@@ -74,7 +73,6 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
       ),
     );
   }
-
 
   Widget _buildDetailRow(String label, String value) {
     return Container(
@@ -107,7 +105,6 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
       ),
     );
   }
-
 
   String _formatFullDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';

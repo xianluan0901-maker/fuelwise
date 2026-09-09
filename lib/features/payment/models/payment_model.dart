@@ -154,6 +154,8 @@ class PaymentTransaction {
   final String stationName;
   final String? stationAddress;
   final String? vehicleId;
+  final String? vehicleName;
+  final String? vehiclePlate;
   final int pumpNumber;
   final String fuelType;
   final double quantityLiters;
@@ -176,6 +178,8 @@ class PaymentTransaction {
     required this.stationName,
     this.stationAddress,
     this.vehicleId,
+    this.vehicleName,
+    this.vehiclePlate,
     required this.pumpNumber,
     required this.fuelType,
     required this.quantityLiters,
@@ -200,6 +204,8 @@ class PaymentTransaction {
       stationName: json['station_name'].toString(),
       stationAddress: json['station_address']?.toString(),
       vehicleId: json['vehicle_id']?.toString(),
+      vehicleName: json['vehicle_name']?.toString(),
+      vehiclePlate: json['vehicle_plate']?.toString(),
       pumpNumber: json['pump_number'] ?? 0,
       fuelType: json['fuel_type'].toString(),
       quantityLiters: (json['quantity_liters'] ?? 0).toDouble(),
@@ -225,6 +231,8 @@ class PaymentTransaction {
       'station_name': stationName,
       'station_address': stationAddress,
       'vehicle_id': vehicleId,
+      'vehicle_name': vehicleName,
+      'vehicle_plate': vehiclePlate,
       'pump_number': pumpNumber,
       'fuel_type': fuelType,
       'quantity_liters': quantityLiters,
