@@ -126,16 +126,10 @@ class _MainNavigationState extends State<MainNavigation> {
               ),
 
               onTap: (index) {
-                setState(() {
-                  if (index == 3) {
-                    // Recreate Reward so latest points are loaded.
-                    _pages[index] = RewardHomeScreen(
-                      key: UniqueKey(),
-                    );
-                  } else {
-                    _pages[index] ??= _createPage(index);
-                  }
+                if (index == _currentIndex) return;
 
+                setState(() {
+                  _pages[index] ??= _createPage(index);
                   _currentIndex = index;
                 });
               },

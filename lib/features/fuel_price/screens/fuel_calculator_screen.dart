@@ -1,989 +1,1075 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../vehicle/models/vehicle_model.dart';
+import '../../vehicle/services/vehicle_service.dart';
+import '../../vehicle/screens/vehicle_form_screen.dart';
+import '../../fuel_station/models/fuel_station_model.dart';
+import '../../fuel_station/screens/station_list_screen.dart';
+import '../../payment/screens/payment_page.dart';
 import '../models/fuel_price_model.dart';
 import '../services/fuel_price_service.dart';
-
-enum CalculatorMode {
-  price,
-  litre,
-}
 
 class FuelCalculatorScreen extends StatefulWidget {
   const FuelCalculatorScreen({super.key});
 
   @override
-  State<FuelCalculatorScreen> createState() {
-    return _FuelCalculatorScreenState();
-  }
+  State<FuelCalculatorScreen> createState() =>
+      _FuelCalculatorScreenState();
 }
 
-class _FuelCalculatorScreenState
-    extends State<FuelCalculatorScreen> {
-  final FuelPriceService _fuelPriceService =
-  FuelPriceService();
+class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
+  static const _blue = Color(0xFF1687E8);
+  static const _dark = Color(0xFF153B60);
+  static const _muted = Color(0xFF718096);
+  static const _background = Color(0xFFF5F7FA);
+  static const _border = Color(0xFFE2E8F0);
 
-  final TextEditingController _inputController =
-  TextEditingController(text: '50.00');
+  final _formKey = GlobalKey<FormState>();
+  final _vehicleService = VehicleService();
+  final _priceService = FuelPriceService();
 
-  FuelPrice? _latestPrice;
-  FuelPrice? _previousPrice;
+  final _distanceController = TextEditingController(text: '200');
+  final _efficiencyController = TextEditingController();
 
-  CalculatorMode _mode = CalculatorMode.price;
+  final _decimal = NumberFormat('#,##0.00', 'en_US');
+  final _distanceFormat = NumberFormat('#,##0.0', 'en_US');
+  final _compact = NumberFormat('#,##0.##', 'en_US');
 
-  bool _isEastMalaysia = false;
-  bool _isLoading = true;
-  String? _errorMessage;
+  List<Vehicle> _vehicles = [];
+  String? _selectedVehicleId;
+  FuelPrice? _prices;
+  _TripEstimate? _result;
+
+  bool _loading = true;
+  bool _openingPayment = false;
+  bool _editingVehicle = false;
+  bool _eastMalaysia = false;
+  bool _useBudi95 = false;
+  bool _returnTrip = false;
+  bool _addAllowance = false;
+
+  double _tankPercent = 25;
+  String? _error;
+
+  static const double _minimumRefillLitres = 1.0;
 
   @override
   void initState() {
     super.initState();
-    _loadFuelPrices();
+    _loadData();
   }
 
   @override
   void dispose() {
-    _inputController.dispose();
+    _distanceController.dispose();
+    _efficiencyController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadFuelPrices() async {
+  Vehicle? get _selectedVehicle {
+    for (final vehicle in _vehicles) {
+      if (vehicle.id == _selectedVehicleId) {
+        return vehicle;
+      }
+    }
+    return null;
+  }
+
+  String get _fuelType => _selectedVehicle?.fuelType ?? '';
+
+  bool get _supportedFuel =>
+      ['RON95', 'RON97', 'Diesel'].contains(_fuelType);
+
+  bool get _validCapacity {
+    final capacity = _selectedVehicle?.tankCapacity;
+    return capacity != null &&
+        capacity.isFinite &&
+        capacity >= 5 &&
+        capacity <= 200;
+  }
+
+  bool get _budiAvailable {
+    final price = _prices?.ron95Budi;
+    return price != null && price.isFinite && price > 0;
+  }
+
+  double get _pricePerLitre {
+    final prices = _prices;
+    if (prices == null) return 0;
+
+    switch (_fuelType) {
+      case 'RON95':
+        return _useBudi95
+            ? (prices.ron95Budi ?? 0)
+            : prices.ron95;
+      case 'RON97':
+        return prices.ron97;
+      case 'Diesel':
+        return prices.dieselForRegion(_eastMalaysia);
+      default:
+        return 0;
+    }
+  }
+
+  bool get _alternativePrice =>
+      (_fuelType == 'RON95' && _useBudi95) ||
+          (_fuelType == 'Diesel' && _eastMalaysia);
+
+  String _money(double value) => 'RM ${_decimal.format(value)}';
+  String _litres(double value) => '${_decimal.format(value)} L';
+  String _distance(double value) =>
+      '${_distanceFormat.format(value)} km';
+
+  void _invalidate() {
+    if (_result == null) return;
+    setState(() => _result = null);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _loadData() async {
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _loading = true;
+      _error = null;
+      _result = null;
     });
 
     try {
-      final history =
-      await _fuelPriceService.getFuelPriceHistory();
+      final data = await Future.wait<Object>([
+        _vehicleService.getVehicles(),
+        _priceService.getLatestFuelPrice(),
+      ]);
 
       if (!mounted) return;
 
-      setState(() {
-        _latestPrice = history.first;
-        _previousPrice =
-        history.length >= 2 ? history[1] : history.first;
+      final vehicles = data[0] as List<Vehicle>;
+      final prices = data[1] as FuelPrice;
 
-        _isLoading = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
+      Vehicle? selected;
 
-      setState(() {
-        _isLoading = false;
-        _errorMessage =
-        'Unable to retrieve the latest fuel prices.';
-      });
-    }
-  }
+      for (final vehicle in vehicles) {
+        if (vehicle.id == _selectedVehicleId) {
+          selected = vehicle;
+          break;
+        }
+      }
 
-  double get _inputValue {
-    return double.tryParse(
-      _inputController.text.trim(),
-    ) ??
-        0;
-  }
-
-  double _priceFor(
-      FuelPrice price,
-      String fuelType,
-      ) {
-    switch (fuelType) {
-      case 'BUDI95':
-        return price.ron95Budi ?? price.ron95;
-
-      case 'RON97':
-        return price.ron97;
-
-      case 'Diesel':
-        return price.dieselForRegion(
-          _isEastMalaysia,
+      if (selected == null && vehicles.isNotEmpty) {
+        selected = vehicles.firstWhere(
+              (vehicle) => vehicle.isDefault,
+          orElse: () => vehicles.first,
         );
+      }
 
-      case 'RON95':
-      default:
-        return price.ron95;
+      setState(() {
+        _vehicles = vehicles;
+        _prices = prices;
+        _useBudi95 = false;
+
+        if (selected != null) {
+          _applyVehicle(selected);
+        } else {
+          _selectedVehicleId = null;
+          _efficiencyController.clear();
+        }
+
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error = 'Could not load vehicles or prices. '
+            'Check your connection and sign-in status.';
+      });
     }
   }
 
-  double _litresFor(String fuelType) {
-    if (_latestPrice == null || _inputValue <= 0) {
-      return 0;
-    }
-
-    if (_mode == CalculatorMode.litre) {
-      return _inputValue;
-    }
-
-    final pricePerLitre = _priceFor(
-      _latestPrice!,
-      fuelType,
-    );
-
-    if (pricePerLitre <= 0) {
-      return 0;
-    }
-
-    return _inputValue / pricePerLitre;
+  void _applyVehicle(Vehicle vehicle) {
+    _selectedVehicleId = vehicle.id;
+    _efficiencyController.text =
+        vehicle.fuelEfficiency?.toString() ?? '';
+    _useBudi95 = false;
+    _result = null;
   }
 
-  double _totalFor(String fuelType) {
-    if (_latestPrice == null || _inputValue <= 0) {
-      return 0;
+  Future<void> _editVehicle() async {
+    if (_editingVehicle) return;
+    setState(() => _editingVehicle = true);
+
+    try {
+      final changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VehicleFormScreen(
+            vehicle: _selectedVehicle,
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+      if (changed == true) await _loadData();
+    } finally {
+      if (mounted) {
+        setState(() => _editingVehicle = false);
+      }
     }
-
-    if (_mode == CalculatorMode.price) {
-      return _inputValue;
-    }
-
-    final pricePerLitre = _priceFor(
-      _latestPrice!,
-      fuelType,
-    );
-
-    return _inputValue * pricePerLitre;
   }
 
-  double _differenceFor(String fuelType) {
-    if (_latestPrice == null ||
-        _previousPrice == null) {
-      return 0;
+  String? _validateNumber(
+      String? value, {
+        required double minimum,
+        required double maximum,
+        required String unit,
+      }) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) return 'Required';
+
+    if (!RegExp(r'^[0-9]+(?:\.[0-9]{1,2})?$').hasMatch(text)) {
+      return 'Use up to 2 decimal places.';
     }
 
-    final currentPrice = _priceFor(
-      _latestPrice!,
-      fuelType,
-    );
+    final number = double.tryParse(text);
 
-    final previousPrice = _priceFor(
-      _previousPrice!,
-      fuelType,
-    );
+    if (number == null ||
+        !number.isFinite ||
+        number < minimum ||
+        number > maximum) {
+      return 'Enter ${_compact.format(minimum)}'
+          '–${_compact.format(maximum)} $unit.';
+    }
 
-    final weeklyPriceDifference =
-        currentPrice - previousPrice;
-
-    return weeklyPriceDifference *
-        _litresFor(fuelType);
+    return null;
   }
 
-  Color _fuelColour(String fuelType) {
-    switch (fuelType) {
-      case 'BUDI95':
-        return const Color(0xFF1687E8);
+  void _calculate() {
+    final vehicle = _selectedVehicle;
 
-      case 'RON97':
-        return const Color(0xFFF5A623);
+    if (vehicle == null || !_validCapacity || !_supportedFuel) {
+      _showMessage('Complete your saved vehicle details first.');
+      return;
+    }
 
-      case 'Diesel':
-        return const Color(0xFF7B61D1);
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      _invalidate();
+      return;
+    }
 
-      case 'RON95':
-      default:
-        return const Color(0xFF20A978);
+    final price = _pricePerLitre;
+
+    if (!price.isFinite || price <= 0) {
+      _invalidate();
+      _showMessage('Fuel price unavailable. Please refresh.');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    final efficiency =
+    double.parse(_efficiencyController.text.trim());
+    final oneWay =
+    double.parse(_distanceController.text.trim());
+    final capacity = vehicle.tankCapacity!;
+
+    final tripDistance = oneWay * (_returnTrip ? 2 : 1);
+    final existingFuel = capacity * _tankPercent / 100;
+    final freeSpace = math.max(0.0, capacity - existingFuel);
+
+    final baseFuel = tripDistance / efficiency;
+    final extraFuel = _addAllowance ? baseFuel * 0.10 : 0.0;
+    final plannedFuel = baseFuel + extraFuel;
+
+    final additionalFuel = math.max(
+      0.0,
+      plannedFuel - existingFuel,
+    );
+
+    final rawRefill = math.min(additionalFuel, freeSpace);
+
+    // Round once. Use this same quantity for display, cost and payment.
+    final roundedRefill =
+    double.parse(rawRefill.toStringAsFixed(2));
+
+    // Never exceed the estimated free space or saved tank capacity.
+    final maximumRefill =
+        (math.min(freeSpace, capacity) * 100).floor() / 100.0;
+
+    final refillNow = math.min(roundedRefill, maximumRefill);
+
+    // Do not mistake a rounding difference for a required fuel stop.
+    final refillLater = math.max(
+      0.0,
+      additionalFuel - freeSpace,
+    );
+
+    String? notice;
+
+    if (refillLater > 0.001) {
+      notice = 'Plan refuelling stops: about '
+          '${_litres(refillLater)} more is needed during the trip.';
+    } else if (additionalFuel <= 0) {
+      notice = 'Your estimated fuel is enough for this trip.';
+    } else if (refillNow <= 0) {
+      notice = 'The estimated top-up is too small for payment.';
+    }
+
+    setState(() {
+      _result = _TripEstimate(
+        vehicleId: vehicle.id,
+        fuelType: vehicle.fuelType,
+        refillLitres: refillNow,
+        pricePerLitre: price,
+        cost: refillNow * price,
+        tripDistance: tripDistance,
+        plannedFuel: plannedFuel,
+        notice: notice,
+        alternativePrice: _alternativePrice,
+        details: [
+          MapEntry('One-way distance', _distance(oneWay)),
+          MapEntry('Return trip', _returnTrip ? 'Yes' : 'No'),
+          MapEntry(
+            'Efficiency used',
+            '${_decimal.format(efficiency)} km/L',
+          ),
+          MapEntry('Price per litre', '${_money(price)} / L'),
+          MapEntry('Trip consumption', _litres(baseFuel)),
+          MapEntry('Allowance', _addAllowance ? '10%' : '0%'),
+          MapEntry('Extra planning fuel', _litres(extraFuel)),
+          MapEntry('Trip fuel budget', _money(plannedFuel * price)),
+          MapEntry('Fuel already in tank', _litres(existingFuel)),
+          MapEntry('Available tank space', _litres(freeSpace)),
+          MapEntry('Additional fuel needed', _litres(additionalFuel)),
+          if (refillLater > 0.001)
+            MapEntry('Fuel needed en route', _litres(refillLater)),
+        ],
+      );
+    });
+  }
+
+  Future<void> _useRefillAmount(_TripEstimate estimate) async {
+    if (_openingPayment ||
+        !estimate.refillLitres.isFinite ||
+        estimate.refillLitres < _minimumRefillLitres) {
+      return;
+    }
+
+    setState(() => _openingPayment = true);
+
+    try {
+      final station = await Navigator.push<FuelStation>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const StationListScreen(
+            selectionMode: true,
+          ),
+        ),
+      );
+
+      if (!mounted || station == null) return;
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentPage(
+            placeId: station.placeId,
+            stationName: station.stationName,
+            stationAddress: station.stationAddress,
+            initialVehicleId: estimate.vehicleId,
+            initialFuelType: estimate.fuelType,
+            initialLitres: estimate.refillLitres,
+            estimatedPricePerLitre: estimate.pricePerLitre,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Could not open payment. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _openingPayment = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: _background,
       appBar: AppBar(
         backgroundColor: const Color(0xFFE1F2FF),
         centerTitle: true,
         title: const Text(
-          'Fuel Calculator',
+          'Fuel Estimator',
           style: TextStyle(
-            color: Color(0xFF153B60),
+            color: _dark,
             fontWeight: FontWeight.bold,
           ),
         ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadFuelPrices,
-        child: ListView(
-          physics:
-          const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            12,
-            18,
-            12,
-            45,
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _loading || _openingPayment || _editingVehicle
+                ? null
+                : _loadData,
+            icon: const Icon(Icons.refresh_rounded),
           ),
-          children: [
-            _buildInformationRow(),
-            const SizedBox(height: 24),
-            const Text(
-              'Fuel Cost Calculator',
-              style: TextStyle(
-                color: Color(0xFF153B60),
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _loadData,
+                child: const Text('Try again'),
               ),
-            ),
-            const SizedBox(height: 10),
-            _buildCalculatorCard(),
-            const SizedBox(height: 28),
-            const Text(
-              'Result',
-              style: TextStyle(
-                color: Color(0xFF153B60),
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildResultSection(),
-          ],
+            ],
+          ),
         ),
+      );
+    }
+
+    return Form(
+      key: _formKey,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
+        children: [
+          _buildVehicleCard(),
+          if (_selectedVehicle != null) ...[
+            const SizedBox(height: 14),
+            _buildTripCard(),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _openingPayment ||
+                  !_validCapacity ||
+                  !_supportedFuel
+                  ? null
+                  : _calculate,
+              style: FilledButton.styleFrom(
+                backgroundColor: _blue,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.calculate_outlined),
+              label: const Text('Calculate estimate'),
+            ),
+          ],
+          if (_result != null) ...[
+            const SizedBox(height: 16),
+            _buildResultCard(),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildInformationRow() {
-    final date =
-        _latestPrice?.date ?? DateTime.now();
+  Widget _buildVehicleCard() {
+    final vehicle = _selectedVehicle;
 
-    return Row(
-      children: [
-        const Icon(
-          Icons.calendar_month_rounded,
-          size: 18,
-          color: Color(0xFF153B60),
-        ),
-        const SizedBox(width: 7),
-        Text(
-          DateFormat('d MMMM yyyy').format(date),
-          style: const TextStyle(
-            color: Color(0xFF153B60),
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+    if (vehicle == null) {
+      return _card(
+        title: 'Your vehicle',
+        children: [
+          const Text('Add a vehicle to estimate your trip fuel.'),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: _editingVehicle ? null : _editVehicle,
+            icon: const Icon(Icons.add),
+            label: const Text('Add vehicle'),
           ),
-        ),
-        const Spacer(),
-        PopupMenuButton<bool>(
-          initialValue: _isEastMalaysia,
-          onSelected: (isEast) {
-            setState(() {
-              _isEastMalaysia = isEast;
-            });
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem(
-              value: false,
-              child: Text('West Malaysia'),
-            ),
-            PopupMenuItem(
-              value: true,
-              child: Text('East Malaysia'),
-            ),
-          ],
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 9,
-              vertical: 7,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: const Color(0xFFE0E8F0),
+        ],
+      );
+    }
+
+    final capacity = vehicle.tankCapacity;
+    final price = _pricePerLitre;
+    final validPrice = price.isFinite && price > 0;
+
+    return _card(
+      title: 'Your vehicle',
+      action: TextButton(
+        onPressed: _openingPayment || _editingVehicle
+            ? null
+            : _editVehicle,
+        child: const Text('Edit details'),
+      ),
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey(_selectedVehicleId),
+          initialValue: _selectedVehicleId,
+          isExpanded: true,
+          decoration: _decoration('Vehicle'),
+          items: _vehicles.map((item) {
+            return DropdownMenuItem(
+              value: item.id,
+              child: Text(
+                '${item.vehicleName} · ${item.plateNumber}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 16,
-                  color: Color(0xFF1687E8),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _isEastMalaysia
-                      ? 'East Malaysia'
-                      : 'West Malaysia',
+            );
+          }).toList(),
+          onChanged: (id) {
+            if (id == null) return;
+
+            final selected = _vehicles.firstWhere(
+                  (item) => item.id == id,
+            );
+
+            setState(() => _applyVehicle(selected));
+          },
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F7FC),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.lock_outline_rounded,
+                color: _muted,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${vehicle.fuelType}  ·  '
+                      '${capacity != null && capacity.isFinite ? _litres(capacity) : 'Tank not set'}',
                   style: const TextStyle(
-                    color: Color(0xFF536B7E),
-                    fontSize: 10,
+                    color: _dark,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(width: 2),
-                const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 16,
-                  color: Color(0xFF718096),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+        if (!_validCapacity || !_supportedFuel) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Update fuel type and tank capacity in vehicle details.',
+            style: TextStyle(color: Colors.redAccent, fontSize: 12),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _numberField(
+          controller: _efficiencyController,
+          label: 'Fuel efficiency',
+          unit: 'km/L',
+          minimum: 1,
+          maximum: 50,
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Adjustable for this estimate only.',
+          style: TextStyle(color: _muted, fontSize: 12),
+        ),
+        const Divider(height: 28),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                _useBudi95 && _fuelType == 'RON95'
+                    ? 'BUDI95 price'
+                    : '$_fuelType price',
+                style: const TextStyle(color: _muted),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              validPrice ? '${_money(price)} / L' : 'Unavailable',
+              style: const TextStyle(
+                color: _dark,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Updated ${DateFormat('d MMM yyyy').format(_prices!.date)}',
+          style: const TextStyle(color: _muted, fontSize: 11),
+        ),
+        if (_fuelType == 'Diesel') ...[
+          const SizedBox(height: 10),
+          DropdownButtonFormField<bool>(
+            initialValue: _eastMalaysia,
+            decoration: _decoration('Diesel region'),
+            items: const [
+              DropdownMenuItem(
+                value: false,
+                child: Text('Peninsular Malaysia'),
+              ),
+              DropdownMenuItem(
+                value: true,
+                child: Text('East Malaysia'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _eastMalaysia = value;
+                _result = null;
+              });
+            },
+          ),
+        ],
+        if (_fuelType == 'RON95' && _budiAvailable)
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text(
+              'Use BUDI95',
+              style: TextStyle(fontSize: 14),
+            ),
+            subtitle: const Text(
+              'Eligible purchases only',
+              style: TextStyle(fontSize: 11),
+            ),
+            value: _useBudi95,
+            onChanged: (value) {
+              setState(() {
+                _useBudi95 = value;
+                _result = null;
+              });
+            },
+          ),
+        if (_alternativePrice) ...[
+          const SizedBox(height: 6),
+          const Text(
+            'Payment may use a different price.',
+            style: TextStyle(color: _muted, fontSize: 12),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTripCard() {
+    return _card(
+      title: 'Your trip',
+      children: [
+        _numberField(
+          controller: _distanceController,
+          label: 'One-way distance',
+          unit: 'km',
+          minimum: 0.1,
+          maximum: 10000,
+        ),
+        const SizedBox(height: 8),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text(
+            'Return trip',
+            style: TextStyle(fontSize: 14),
+          ),
+          subtitle: const Text(
+            'Same distance each way',
+            style: TextStyle(fontSize: 11),
+          ),
+          value: _returnTrip,
+          onChanged: (value) {
+            setState(() {
+              _returnTrip = value;
+              _result = null;
+            });
+          },
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text(
+            'Extra planning fuel',
+            style: TextStyle(fontSize: 14),
+          ),
+          subtitle: const Text(
+            'Add 10% to estimated consumption',
+            style: TextStyle(fontSize: 11),
+          ),
+          value: _addAllowance,
+          onChanged: (value) {
+            setState(() {
+              _addAllowance = value;
+              _result = null;
+            });
+          },
+        ),
+        const Divider(height: 24),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Fuel remaining',
+                style: TextStyle(
+                  color: _dark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Text(
+              '${_compact.format(_tankPercent)}%',
+              style: const TextStyle(
+                color: _blue,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: _tankPercent,
+          min: 0,
+          max: 100,
+          divisions: 20,
+          label: '${_compact.format(_tankPercent)}%',
+          onChanged: (value) {
+            setState(() {
+              _tankPercent = value;
+              _result = null;
+            });
+          },
+        ),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Empty', style: TextStyle(color: _muted, fontSize: 11)),
+            Text('Half', style: TextStyle(color: _muted, fontSize: 11)),
+            Text('Full', style: TextStyle(color: _muted, fontSize: 11)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Estimate using your fuel gauge.',
+          style: TextStyle(color: _muted, fontSize: 12),
         ),
       ],
     );
   }
 
-  Widget _buildCalculatorCard() {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFD7E8FF),
-            Color(0xFFE8F1FF),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFCCDFFF),
-        ),
-      ),
-      child: Column(
-        children: [
-          _buildModeSelector(),
-          const SizedBox(height: 13),
-          Container(
-            padding: const EdgeInsets.fromLTRB(
-              18,
-              18,
-              18,
-              14,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0D000000),
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment:
-                  MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _mode == CalculatorMode.price
-                          ? 'RM'
-                          : 'L',
-                      style: const TextStyle(
-                        color: Color(0xFF454B54),
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: 175,
-                        ),
-                        child: TextField(
-                          controller: _inputController,
-                          textAlign: TextAlign.center,
-                          keyboardType:
-                          const TextInputType
-                              .numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(
-                                r'^\d*\.?\d{0,2}',
-                              ),
-                            ),
-                          ],
-                          onChanged: (_) {
-                            setState(() {});
-                          },
-                          style: const TextStyle(
-                            color: Color(0xFF5B5BF7),
-                            fontSize: 25,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: _mode ==
-                                CalculatorMode.price
-                                ? 'Enter RM'
-                                : 'Enter litre',
-                            hintStyle: const TextStyle(
-                              color: Color(0xFF9AA6B2),
-                              fontSize: 14,
-                              fontWeight:
-                              FontWeight.normal,
-                            ),
-                            filled: true,
-                            fillColor:
-                            const Color(0xFFF6F7FF),
-                            contentPadding:
-                            const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 10,
-                            ),
-                            enabledBorder:
-                            OutlineInputBorder(
-                              borderRadius:
-                              BorderRadius.circular(10),
-                              borderSide:
-                              const BorderSide(
-                                color:
-                                Color(0xFFB9C5FF),
-                                width: 1.4,
-                              ),
-                            ),
-                            focusedBorder:
-                            OutlineInputBorder(
-                              borderRadius:
-                              BorderRadius.circular(10),
-                              borderSide:
-                              const BorderSide(
-                                color:
-                                Color(0xFF5B5BF7),
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    const Icon(
-                      Icons.edit_rounded,
-                      color: Color(0xFF7B82C5),
-                      size: 17,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 9),
-                Row(
-                  mainAxisAlignment:
-                  MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.touch_app_outlined,
-                      color: Color(0xFF8A96A3),
-                      size: 14,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      _mode == CalculatorMode.price
-                          ? 'Enter your fuel budget'
-                          : 'Enter the number of litres',
-                      style: const TextStyle(
-                        color: Color(0xFF718096),
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildResultCard() {
+    final result = _result!;
+    final canPay = result.refillLitres.isFinite &&
+        result.refillLitres >= _minimumRefillLitres &&
+        !_openingPayment;
 
-  Widget _buildModeSelector() {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE9F0FF),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildModeButton(
-              title: 'Price (RM)',
-              mode: CalculatorMode.price,
-            ),
-          ),
-          Expanded(
-            child: _buildModeButton(
-              title: 'Litre (L)',
-              mode: CalculatorMode.litre,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModeButton({
-    required String title,
-    required CalculatorMode mode,
-  }) {
-    final selected = _mode == mode;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () {
-        setState(() {
-          _mode = mode;
-
-          _inputController.text =
-          mode == CalculatorMode.price
-              ? '50.00'
-              : '10.00';
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(
-          milliseconds: 180,
-        ),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected
-              ? Colors.white
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: selected
-              ? const [
-            BoxShadow(
-              color: Color(0x10000000),
-              blurRadius: 5,
-              offset: Offset(0, 2),
-            ),
-          ]
-              : null,
-        ),
-        child: Text(
-          title,
-          style: TextStyle(
-            color: selected
-                ? const Color(0xFF153B60)
-                : const Color(0xFF7D8A99),
-            fontSize: 12,
-            fontWeight: selected
-                ? FontWeight.bold
-                : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultSection() {
-    if (_isLoading) {
-      return const Padding(
-        padding: EdgeInsets.all(35),
-        child: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_errorMessage != null ||
-        _latestPrice == null) {
-      return Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            const Icon(
-              Icons.wifi_off_rounded,
-              color: Colors.redAccent,
-              size: 35,
-            ),
-            const SizedBox(height: 9),
-            Text(
-              _errorMessage ??
-                  'Fuel prices are unavailable.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _loadFuelPrices,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label: const Text('Try Again'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    const fuelTypes = [
-      'RON95',
-      'BUDI95',
-      'RON97',
-      'Diesel',
-    ];
-
-    return Column(
+    return _card(
+      title: 'Your estimate',
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Colors.white,
-                Color(0xFFF7FAFF),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: const Color(0xFFDCE8F5),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x10000000),
-                blurRadius: 14,
-                offset: Offset(0, 5),
-              ),
-            ],
+            color: const Color(0xFFEAF4FF),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
-                children: [
-                  Icon(
-                    Icons.receipt_long_rounded,
-                    color: Color(0xFF1687E8),
-                    size: 21,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Fuel Comparison',
-                    style: TextStyle(
-                      color: Color(0xFF153B60),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              const Text(
+                'Suggested refill',
+                style: TextStyle(color: _muted, fontSize: 12),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 6),
               Text(
-                _mode == CalculatorMode.price
-                    ? 'Litres purchasable with '
-                    'RM${_inputValue.toStringAsFixed(2)}'
-                    : 'Cost for '
-                    '${_inputValue.toStringAsFixed(2)} litres',
+                _litres(result.refillLitres),
                 style: const TextStyle(
-                  color: Color(0xFF718096),
-                  fontSize: 11,
+                  color: _dark,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 16),
-              _buildResultTable(fuelTypes),
+              const SizedBox(height: 4),
+              Text(
+                'About ${_money(result.cost)}',
+                style: const TextStyle(
+                  color: _blue,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        const Row(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.info_outline_rounded,
-              color: Color(0xFF718096),
-              size: 15,
+        _detailRow(
+          'Trip distance',
+          _distance(result.tripDistance),
+        ),
+        _detailRow(
+          'Planned trip fuel',
+          _litres(result.plannedFuel),
+        ),
+        if (result.notice != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            result.notice!,
+            style: const TextStyle(
+              color: _dark,
+              fontSize: 12,
+              height: 1.4,
             ),
-            SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'Difference is based on the change '
-                    'from the previous weekly fuel price.',
-                style: TextStyle(
-                  color: Color(0xFF718096),
-                  fontSize: 10,
-                  height: 1.4,
-                ),
+          ),
+        ],
+        ExpansionTile(
+          key: ObjectKey(result),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 8),
+          expandedCrossAxisAlignment: CrossAxisAlignment.start,
+          title: const Text(
+            'View calculation details',
+            style: TextStyle(
+              color: _blue,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          children: [
+            for (final row in result.details)
+              _detailRow(row.key, row.value),
+            const SizedBox(height: 8),
+            const Text(
+              'Trip fuel budget includes fuel already in your tank. '
+                  'Refill cost covers only the suggested purchase.',
+              style: TextStyle(
+                color: _muted,
+                fontSize: 11,
+                height: 1.4,
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: canPay
+                ? () => _useRefillAmount(result)
+                : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: _blue,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            icon: const Icon(Icons.local_gas_station_outlined),
+            label: Text(
+              _openingPayment ? 'Opening…' : 'Use this refill amount',
+            ),
+          ),
+        ),
+        if (result.refillLitres > 0) ...[
+          const SizedBox(height: 8),
+          Text(
+            result.refillLitres < _minimumRefillLitres
+                ? 'Minimum refill to continue: ${_litres(_minimumRefillLitres)}.'
+                : 'Choose a station, then review payment.',
+            style: const TextStyle(
+              color: _muted,
+              fontSize: 12,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Text(
+          result.alternativePrice
+              ? 'Estimates vary with driving conditions. '
+              'Payment may use a different fuel price.'
+              : 'Estimates vary with driving conditions. '
+              'Review the final amount in payment.',
+          style: const TextStyle(
+            color: _muted,
+            fontSize: 11,
+            height: 1.4,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildResultTable(
-      List<String> fuelTypes,
-      ) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(13),
-      child: Table(
-        columnWidths: const {
-          0: FixedColumnWidth(70),
-          1: FlexColumnWidth(),
-          2: FlexColumnWidth(),
-          3: FlexColumnWidth(),
-          4: FlexColumnWidth(),
-        },
-        border: const TableBorder(
-          horizontalInside: BorderSide(
-            color: Color(0xFFE5EDF5),
-          ),
-          verticalInside: BorderSide(
-            color: Color(0xFFE5EDF5),
-          ),
-        ),
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TableRow(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFFDDEEFF),
-                  Color(0xFFEDF6FF),
-                ],
+          Expanded(
+            flex: 3,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: _muted,
+                fontSize: 13,
+                height: 1.4,
               ),
             ),
-            children: [
-              _buildHeaderCell(''),
-              _buildHeaderCell('RON\n95'),
-              _buildHeaderCell('BUDI\n95'),
-              _buildHeaderCell('RON\n97'),
-              _buildHeaderCell('DIESEL'),
-            ],
           ),
-          TableRow(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-            ),
-            children: [
-              _buildLabelCell(
-                icon:
-                Icons.local_gas_station_rounded,
-                label: 'Price',
-                unit: 'RM/L',
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: _dark,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
               ),
-              for (final fuel in fuelTypes)
-                _buildValueCell(
-                  _priceFor(
-                    _latestPrice!,
-                    fuel,
-                  ).toStringAsFixed(2),
-                  colour: _fuelColour(fuel),
-                ),
-            ],
-          ),
-          TableRow(
-            decoration: const BoxDecoration(
-              color: Color(0xFFF9FBFE),
             ),
-            children: [
-              _buildLabelCell(
-                icon: Icons.water_drop_outlined,
-                label: 'Litre',
-                unit: 'L',
-              ),
-              for (final fuel in fuelTypes)
-                _buildValueCell(
-                  _litresFor(fuel)
-                      .toStringAsFixed(2),
-                ),
-            ],
-          ),
-          TableRow(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-            ),
-            children: [
-              _buildLabelCell(
-                icon: Icons.payments_outlined,
-                label: 'Total',
-                unit: 'RM',
-              ),
-              for (final fuel in fuelTypes)
-                _buildValueCell(
-                  _totalFor(fuel)
-                      .toStringAsFixed(2),
-                  isBold: true,
-                ),
-            ],
-          ),
-          TableRow(
-            decoration: const BoxDecoration(
-              color: Color(0xFFF9FBFE),
-            ),
-            children: [
-              _buildLabelCell(
-                icon: Icons.trending_up_rounded,
-                label: 'Change',
-                unit: 'RM',
-              ),
-              for (final fuel in fuelTypes)
-                _buildDifferenceCell(
-                  _differenceFor(fuel),
-                ),
-            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderCell(String text) {
-    return Container(
-      height: 43,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 2,
-        vertical: 4,
+  Widget _numberField({
+    required TextEditingController controller,
+    required String label,
+    required String unit,
+    required double minimum,
+    required double maximum,
+  }) {
+    final digits = maximum.floor().toString().length;
+    final pattern = RegExp(
+      '^[0-9]{0,$digits}(?:\\.[0-9]{0,2})?\$',
+    );
+
+    return TextFormField(
+      key: ObjectKey(controller),
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
       ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Color(0xFF153B60),
-          fontSize: 12,
-          height: 1.1,
-          fontWeight: FontWeight.bold,
-        ),
+      inputFormatters: [
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          if (!newValue.composing.isCollapsed) return newValue;
+          return pattern.hasMatch(newValue.text) ? newValue : oldValue;
+        }),
+      ],
+      decoration: _decoration(label, unit: unit),
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      validator: (value) => _validateNumber(
+        value,
+        minimum: minimum,
+        maximum: maximum,
+        unit: unit,
+      ),
+      onChanged: (_) => _invalidate(),
+    );
+  }
+
+  InputDecoration _decoration(String label, {String? unit}) {
+    return InputDecoration(
+      labelText: label,
+      suffixText: unit,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      errorMaxLines: 2,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 15,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _border),
       ),
     );
   }
 
-  Widget _buildLabelCell({
-    required IconData icon,
-    required String label,
-    required String unit,
+  Widget _card({
+    required String title,
+    required List<Widget> children,
+    Widget? action,
   }) {
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 5,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 13,
-            color: const Color(0xFF718096),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
                   style: const TextStyle(
-                    color: Color(0xFF354B60),
-                    fontSize: 11,
+                    color: _dark,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
-                  unit,
-                  style: const TextStyle(
-                    color: Color(0xFF93A1AF),
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildValueCell(
-      String value, {
-        Color colour = const Color(0xFF354B60),
-        bool isBold = false,
-      }) {
-    return Container(
-      height: 48,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 2,
-      ),
-      child: Text(
-        value,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: colour,
-          fontSize: 12,
-          fontWeight: isBold
-              ? FontWeight.bold
-              : FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDifferenceCell(
-      double difference,
-      ) {
-    const tolerance = 0.001;
-
-    if (difference.abs() < tolerance) {
-      return Container(
-        height: 48,
-        alignment: Alignment.center,
-        child: const Column(
-          mainAxisAlignment:
-          MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.remove_rounded,
-              color: Colors.grey,
-              size: 16,
-            ),
-            Text(
-              '0.00',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
               ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final increased = difference > 0;
-
-    final colour = increased
-        ? Colors.redAccent
-        : const Color(0xFF3563FF);
-
-    return Container(
-      height: 57,
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment:
-        MainAxisAlignment.center,
-        children: [
-          Icon(
-            increased
-                ? Icons.arrow_upward_rounded
-                : Icons.arrow_downward_rounded,
-            color: colour,
-            size: 14,
+              if (action != null) action,
+            ],
           ),
-          Text(
-            difference.abs().toStringAsFixed(2),
-            style: TextStyle(
-              color: colour,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          const SizedBox(height: 14),
+          ...children,
         ],
       ),
     );
   }
+}
+
+class _TripEstimate {
+  final String vehicleId;
+  final String fuelType;
+  final double refillLitres;
+  final double pricePerLitre;
+  final double cost;
+  final double tripDistance;
+  final double plannedFuel;
+  final bool alternativePrice;
+  final List<MapEntry<String, String>> details;
+  final String? notice;
+
+  const _TripEstimate({
+    required this.vehicleId,
+    required this.fuelType,
+    required this.refillLitres,
+    required this.pricePerLitre,
+    required this.cost,
+    required this.tripDistance,
+    required this.plannedFuel,
+    required this.alternativePrice,
+    required this.details,
+    this.notice,
+  });
 }

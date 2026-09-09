@@ -395,10 +395,11 @@ class _RewardDetailScreenState
     required String value,
   }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 36,
+          height: 36,
           decoration: const BoxDecoration(
             color: Color(0xFFE8F4FF),
             shape: BoxShape.circle,
@@ -406,27 +407,32 @@ class _RewardDetailScreenState
           child: Icon(
             icon,
             color: const Color(0xFF1687E8),
-            size: 20,
+            size: 19,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 4,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF718096),
+              fontSize: 13,
+              height: 1.4,
+            ),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF8292A2),
-              fontSize: 13,
-            ),
-          ),
-        ),
-        Flexible(
+          flex: 5,
           child: Text(
             value,
             textAlign: TextAlign.right,
             style: const TextStyle(
               color: Color(0xFF173B57),
               fontSize: 13,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
             ),
           ),
         ),
