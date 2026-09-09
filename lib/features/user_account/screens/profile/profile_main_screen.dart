@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'profile_screen.dart';
 import '../login_screen.dart';
 import '../../../vehicle/screens/vehicle_list_screen.dart';
+import '../../../fuel_report/screens/fuel_report_screen.dart';
 
 class ProfileMainScreen extends StatelessWidget {
   const ProfileMainScreen({super.key});
@@ -11,16 +12,6 @@ class ProfileMainScreen extends StatelessWidget {
   Future<void> logout(BuildContext context) async {
     try {
       await Supabase.instance.client.auth.signOut();
-
-      if (context.mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const LoginScreen(),
-          ),
-              (route) => false,
-        );
-      }
     } on AuthException catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -39,7 +30,7 @@ class ProfileMainScreen extends StatelessWidget {
         title: const Text("Profile"),
       ),
 
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -116,7 +107,49 @@ class ProfileMainScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 15),
-            // Logout
+
+// Fuel Report
+            Card(
+              child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFE9F4FF),
+                  child: Icon(
+                    Icons.bar_chart_rounded,
+                    color: Color(0xFF1687E8),
+                  ),
+                ),
+
+                title: const Text(
+                  'Fuel Report',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                subtitle: const Text(
+                  'View your fuel usage and insights',
+                ),
+
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 18,
+                ),
+
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                      const FuelReportScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+// Logout
             Card(
               child: ListTile(
                 leading: const Icon(

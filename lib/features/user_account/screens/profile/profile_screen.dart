@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,6 +13,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String name = "Loading...";
   String email = "Loading...";
   String phone = "Loading...";
+  String? profileImageUrl;
 
   @override
   void initState() {
@@ -23,28 +25,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final supabase = Supabase.instance.client;
 
-      // Get currently logged-in user
       final currentUser = supabase.auth.currentUser;
 
       if (currentUser == null) {
         return;
       }
 
-      // Email comes from Supabase Authentication
-      final userEmail = currentUser.email ?? "No email";
-
-      // Get user's profile information
       final profile = await supabase
           .from('user')
-          .select('full_name, phone_number')
+          .select('full_name, phone_number, profile_image_url')
           .eq('user_id', currentUser.id)
           .single();
 
       if (mounted) {
         setState(() {
           name = profile['full_name'] ?? "No name";
-          email = userEmail;
+          email = currentUser.email ?? "No email";
           phone = profile['phone_number'] ?? "No phone";
+          profileImageUrl = profile['profile_image_url'];
         });
       }
     } catch (e) {
@@ -65,6 +63,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("My Profile"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Edit Profile',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EditProfileScreen(),
+                ),
+              ).then((_) {
+                loadProfile();
+              });
+            },
+          ),
+        ],
       ),
 
       body: SingleChildScrollView(
@@ -74,12 +88,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
 
             // Profile image
-            const CircleAvatar(
+            CircleAvatar(
               radius: 60,
-              child: Icon(
+              backgroundColor: Colors.grey.shade200,
+              backgroundImage: profileImageUrl != null &&
+                  profileImageUrl!.isNotEmpty
+                  ? NetworkImage(
+                '${profileImageUrl!}?t=${DateTime.now().millisecondsSinceEpoch}',
+              )
+                  : null,
+              child: profileImageUrl == null ||
+                  profileImageUrl!.isEmpty
+                  ? const Icon(
                 Icons.person,
                 size: 60,
-              ),
+              )
+                  : null,
             ),
 
             const SizedBox(height: 20),

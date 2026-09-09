@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:fuelwisee/shared/widgets/bottom_nav_bar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'features/user_account/screens/login_screen.dart';
+import 'features/fuel_price/screens/home_screen.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,8 +17,15 @@ Future<void> main() async {
   runApp(const MainApp());
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends StatefulWidget {
   const MainApp({super.key});
+
+  @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +95,29 @@ class MainApp extends StatelessWidget {
         ),
       ),
 
-      home: const LoginScreen(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: Supabase.instance.client.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        final session =
+            snapshot.data?.session ??
+                Supabase.instance.client.auth.currentSession;
+
+        if (session != null) {
+          return const BottomNavBar();
+        }
+
+        return const LoginScreen();
+      },
     );
   }
 }

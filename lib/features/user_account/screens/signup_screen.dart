@@ -141,40 +141,77 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> signup() async {
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final phone = phoneNumController.text.trim();
+    final password = passwordController.text;
+    final confirmPassword = confirmPasswordController.text;
     // Check empty fields
-    if (nameController.text.trim().isEmpty ||
-        emailController.text.trim().isEmpty ||
-        phoneNumController.text.trim().isEmpty ||
-        passwordController.text.isEmpty ||
-        confirmPasswordController.text.isEmpty) {
+    if (name.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Please fill in all fields"),
+          content: Text('Please fill in all required fields.'),
+        ),
+      );
+      return;
+    }
+
+    // Validate email
+    final emailRegex = RegExp(
+      r'^[\w\.-]+@[\w\.-]+\.\w+$',
+    );
+
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid email address (e.g. name@example.com).',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Validate Malaysian phone number
+    final phoneRegex = RegExp(r'^01\d{8,9}$');
+
+    if (!phoneRegex.hasMatch(phone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid Malaysian phone number (e.g. 0123456789).',
+          ),
         ),
       );
       return;
     }
 
     // Check password match
-    if (passwordController.text != confirmPasswordController.text) {
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Password does not match"),
+          content: Text(
+            'The passwords do not match. Please check and try again.',
+          ),
         ),
       );
       return;
     }
 
+
     try {
       final supabase = Supabase.instance.client;
 
-      // Create account in Supabase Auth
       final response = await supabase.auth.signUp(
-        email: emailController.text.trim(),
-        password: passwordController.text,
+        email: email,
+        password: password,
         data: {
-          'full_name': nameController.text.trim(),
-          'phone_number': phoneNumController.text.trim(),
+          'full_name': name,
+          'phone_number': phone,
         },
       );
 

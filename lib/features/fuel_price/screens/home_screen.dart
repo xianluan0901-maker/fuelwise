@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   FuelPrice? _latestPrice;
   List<FuelPrice> _fuelHistory = [];
   String _selectedFuel = 'RON95';
+  String _displayName = 'User';
 
   MalaysiaRegion _selectedRegion = MalaysiaRegion.west;
 
@@ -38,20 +39,33 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadLatestPrice();
+    _loadUserName();
   }
 
-  String get _userName {
+  Future<void> _loadUserName() async {
     final user = Supabase.instance.client.auth.currentUser;
 
-    final fullName =
-    user?.userMetadata?['full_name']?.toString().trim();
+    if (user == null) return;
 
-    if (fullName == null || fullName.isEmpty) {
-      return 'User';
+    try {
+      final profile = await Supabase.instance.client
+          .from('user')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .single();
+
+      final fullName = profile['full_name']?.toString().trim();
+
+      if (!mounted) return;
+
+      setState(() {
+        _displayName = (fullName == null || fullName.isEmpty)
+            ? 'User'
+            : fullName.split(' ').first;
+      });
+    } catch (e) {
+      debugPrint('Error loading user name: $e');
     }
-
-    // Display only the first name.
-    return fullName.split(' ').first;
   }
 
   Future<void> _loadLatestPrice() async {
@@ -214,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${_getGreeting()}, $_userName 👋',
+                      '${_getGreeting()}, $_displayName 👋',
                       style: const TextStyle(
                         color: Color(0xFF153B60),
                         fontSize: 24,
