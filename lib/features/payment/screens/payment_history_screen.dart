@@ -5,6 +5,10 @@ import '../models/payment_model.dart';
 import '../services/payment_service.dart';
 import 'payment_history_detail_screen.dart';
 
+// ⭐ 新增 import
+import '../../vehicle/models/vehicle_model.dart';
+import '../../vehicle/services/vehicle_service.dart';
+
 class PaymentHistoryScreen extends StatefulWidget {
   const PaymentHistoryScreen({super.key});
 
@@ -14,9 +18,14 @@ class PaymentHistoryScreen extends StatefulWidget {
 
 class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   final PaymentService _paymentService = PaymentService();
+  final VehicleService _vehicleService = VehicleService(); // ⭐ 新增
 
   List<PaymentTransaction> _allTransactions = [];
   List<PaymentTransaction> _filteredTransactions = [];
+
+  // ⭐ 新增：车辆列表 + 选中的车辆 ID
+  List<Vehicle> _userVehicles = [];
+  String? _selectedVehicleId;
 
   bool _isLoading = true;
   String? _error;
@@ -54,12 +63,17 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     });
 
     try {
-      final transactions =
-      await _paymentService.getTransactionHistory(user.id);
+      // ⭐ 并行加载：交易历史 + 车辆列表
+      final results = await Future.wait([
+        _paymentService.getTransactionHistory(user.id),
+        _vehicleService.getVehicles(),
+      ]);
 
       if (!mounted) return;
 
-      _allTransactions = transactions;
+      _allTransactions = results[0] as List<PaymentTransaction>;
+      _userVehicles = results[1] as List<Vehicle>;
+
       _applyFilter();
     } catch (e) {
       if (!mounted) return;
@@ -72,14 +86,14 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   }
 
   // ============================================================
-  // Apply Date Filter
+  // Apply Date Filter + Vehicle Filter
   // ============================================================
 
   void _applyFilter() {
     final filtered = _allTransactions.where((item) {
       final itemDate = item.createdAt;
 
-      // Start date
+      // --- Date filter ---
       if (_startDate != null) {
         final startOfDay = DateTime(
           _startDate!.year,
@@ -92,7 +106,6 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         }
       }
 
-      // End date
       if (_endDate != null) {
         final endOfDay = DateTime(
           _endDate!.year,
@@ -109,6 +122,13 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         }
       }
 
+      // ⭐ 新增：Vehicle filter
+      if (_selectedVehicleId != null) {
+        if (item.vehicleId != _selectedVehicleId) {
+          return false;
+        }
+      }
+
       return true;
     }).toList();
 
@@ -119,13 +139,14 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   }
 
   // ============================================================
-  // Reset Date Filter
+  // Reset Filters
   // ============================================================
 
   void _resetFilter() {
     setState(() {
       _startDate = null;
       _endDate = null;
+      _selectedVehicleId = null; // ⭐ 重置车辆筛选
     });
 
     _applyFilter();
@@ -146,15 +167,31 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     if (picked != null) {
       setState(() {
         _startDate = picked;
+        // ⭐ 如果结束日期早于开始日期，清除结束日期
+        if (_endDate != null && _endDate!.isBefore(picked)) {
+          _endDate = null;
+        }
       });
     }
   }
 
   Future<void> _selectEndDate() async {
+    // ⭐ 如果还没有开始日期，提示用户先选开始日期
+    if (_startDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select Start Date first'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
+      initialDate: _endDate ?? _startDate!,
+      firstDate: _startDate!, // ⭐ 限制最小日期为开始日期
       lastDate: DateTime.now(),
     );
 
@@ -213,6 +250,12 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
                 const SizedBox(height: 10),
 
+                // ⭐ 新增：车辆筛选器
+                if (_userVehicles.isNotEmpty) ...[
+                  _buildVehicleFilter(),
+                  const SizedBox(height: 10),
+                ],
+
                 const Text(
                   'You can view transaction history up to 30 days',
                   style: TextStyle(
@@ -242,7 +285,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
                     const SizedBox(width: 10),
 
-                    if (_startDate != null || _endDate != null)
+                    if (_startDate != null ||
+                        _endDate != null ||
+                        _selectedVehicleId != null) // ⭐ 更新条件
                       TextButton(
                         onPressed: _resetFilter,
                         child: const Text(
@@ -267,6 +312,76 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // ============================================================
+  // ⭐ 新增：车辆筛选器
+  // ============================================================
+
+  Widget _buildVehicleFilter() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        // All Vehicles
+        ChoiceChip(
+          label: const Text('All'),
+          selected: _selectedVehicleId == null,
+          onSelected: (selected) {
+            setState(() {
+              _selectedVehicleId = null;
+            });
+            _applyFilter();
+          },
+          selectedColor: const Color(0xFF1687E8),
+          backgroundColor: const Color(0xFFF8FAFC),
+          labelStyle: TextStyle(
+            color: _selectedVehicleId == null ? Colors.white : const Color(0xFF153B60),
+            fontWeight: _selectedVehicleId == null ? FontWeight.bold : FontWeight.normal,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: _selectedVehicleId == null
+                  ? const Color(0xFF1687E8)
+                  : const Color(0xFFDCE5ED),
+            ),
+          ),
+        ),
+
+        // 每辆车
+        for (final vehicle in _userVehicles)
+          ChoiceChip(
+            key: ValueKey(vehicle.id),
+            label: Text(vehicle.vehicleName),
+            selected: _selectedVehicleId == vehicle.id,
+            onSelected: (selected) {
+              setState(() {
+                _selectedVehicleId = selected ? vehicle.id : null;
+              });
+              _applyFilter();
+            },
+            selectedColor: const Color(0xFF1687E8),
+            backgroundColor: const Color(0xFFF8FAFC),
+            labelStyle: TextStyle(
+              color: _selectedVehicleId == vehicle.id
+                  ? Colors.white
+                  : const Color(0xFF153B60),
+              fontWeight: _selectedVehicleId == vehicle.id
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: _selectedVehicleId == vehicle.id
+                    ? const Color(0xFF1687E8)
+                    : const Color(0xFFDCE5ED),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -368,12 +483,27 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
               ),
             ),
 
-            subtitle: Text(
-              _formatDate(item.createdAt),
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
+            // ⭐ 修改 subtitle：显示日期 + 车辆信息
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _formatDate(item.createdAt),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+                // ⭐ 新增：显示车辆信息
+                if (item.vehicleName != null && item.vehiclePlate != null)
+                  Text(
+                    '🚗 ${item.vehicleName} (${item.vehiclePlate})',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+              ],
             ),
 
             trailing: Text(

@@ -40,7 +40,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Vehicle? _selectedVehicle;
   List<Vehicle> _vehicles = [];
-  int? _pumpNumber; // ⭐ 没有默认值，用户必须自己选
+  int? _pumpNumber;
   FuelType? _selectedFuelType;
   double _liters = 0;
   FuelPrice? _latestPrice;
@@ -180,7 +180,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
       _vehicles = results[0] as List<Vehicle>;
 
-      // ⭐ 从 UserVoucher 列表提取 Voucher
       final userVouchers = results[1] as List<UserVoucher>;
       _availableVouchers = userVouchers
           .where((uv) => uv.isAvailable)
@@ -211,12 +210,10 @@ class _PaymentPageState extends State<PaymentPage> {
         setState(() {
           _selectedVehicle = defaultVehicle;
           _selectedFuelType = fuelTypeMap[defaultVehicle.fuelType] ?? FuelType.ron95;
-          // 不设置 _liters 初始值，让用户自己输入
           _litersController.clear();
         });
       }
 
-      // --- 6. 更新积分预览 ---
       await _updatePoints();
 
       setState(() => _isLoading = false);
@@ -293,7 +290,7 @@ class _PaymentPageState extends State<PaymentPage> {
             const SizedBox(height: 18),
             _buildVehicleSection(),
             const SizedBox(height: 18),
-            _buildPumpSection(), // ⭐ 已修改：无默认值 + 提示
+            _buildPumpSection(),
             const SizedBox(height: 18),
             _buildFuelTypeSection(),
             const SizedBox(height: 18),
@@ -491,7 +488,6 @@ class _PaymentPageState extends State<PaymentPage> {
               setState(() {
                 _selectedVehicle = value;
 
-                // 自动更新燃油类型
                 if (value != null) {
                   final fuelTypeMap = {
                     'RON95': FuelType.ron95,
@@ -501,7 +497,6 @@ class _PaymentPageState extends State<PaymentPage> {
                   _selectedFuelType = fuelTypeMap[value.fuelType] ?? FuelType.ron95;
                 }
 
-                // 切换车辆时清空油量输入
                 _liters = 0;
                 _litersController.clear();
               });
@@ -523,10 +518,6 @@ class _PaymentPageState extends State<PaymentPage> {
       ),
     );
   }
-
-  // ============================================================
-  // ⭐ Pump Section（无默认值 + 提示）
-  // ============================================================
 
   Widget _buildPumpSection() {
     return Container(
@@ -564,7 +555,6 @@ class _PaymentPageState extends State<PaymentPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              // ⭐ 未选择时显示红色 "Please select" 标签
               if (_pumpNumber == null) ...[
                 const SizedBox(width: 8),
                 Container(
@@ -618,7 +608,6 @@ class _PaymentPageState extends State<PaymentPage> {
             }),
           ),
           const SizedBox(height: 8),
-          // ⭐ 状态提示
           if (_pumpNumber != null)
             Row(
               children: [
@@ -660,10 +649,6 @@ class _PaymentPageState extends State<PaymentPage> {
       ),
     );
   }
-
-  // ============================================================
-  // Fuel Type Section（只读显示）
-  // ============================================================
 
   Widget _buildFuelTypeSection() {
     if (_selectedVehicle == null) {
@@ -785,10 +770,6 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  // ============================================================
-  // Quantity Section（带完整验证）
-  // ============================================================
-
   Widget _buildLitersSection() {
     final bool hasError = _liters > _maxLiters || (_liters <= 0 && _litersController.text.isNotEmpty);
 
@@ -908,7 +889,7 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   // ============================================================
-  // Voucher Section
+  // ⭐ Voucher Section（保留空状态 + "No voucher" 选项）
   // ============================================================
 
   Widget _buildVoucherSection() {
@@ -974,6 +955,7 @@ class _PaymentPageState extends State<PaymentPage> {
           ),
           const SizedBox(height: 10),
 
+          // ⭐ 情况 1：没有 voucher → 显示提示文字
           if (_availableVouchers.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -988,7 +970,8 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
             )
           else
-            DropdownButtonFormField<Voucher>(
+          // ⭐ 情况 2：有 voucher → 显示下拉菜单，包含 "No voucher" 选项
+            DropdownButtonFormField<Voucher?>(
               value: _selectedVoucher,
               isExpanded: true,
               hint: const Text(
@@ -1012,46 +995,60 @@ class _PaymentPageState extends State<PaymentPage> {
                   ),
                 ),
               ),
-              items: _availableVouchers.map((voucher) {
-                return DropdownMenuItem(
-                  value: voucher,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          voucher.name,
-                          style: const TextStyle(
-                            color: Color(0xFF153B60),
-                            fontSize: 14,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          voucher.discountType == 'fixed'
-                              ? 'RM${voucher.discountValue.toStringAsFixed(2)} off'
-                              : '${voucher.discountValue.toInt()}% off',
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
+              items: [
+                // ⭐ "No voucher" 选项
+                const DropdownMenuItem<Voucher?>(
+                  value: null,
+                  child: Text(
+                    'No voucher',
+                    style: TextStyle(
+                      color: Color(0xFF718096),
+                      fontSize: 14,
+                    ),
                   ),
-                );
-              }).toList(),
+                ),
+                // 现有的 voucher 列表
+                ..._availableVouchers.map((voucher) {
+                  return DropdownMenuItem<Voucher?>(
+                    value: voucher,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            voucher.name,
+                            style: const TextStyle(
+                              color: Color(0xFF153B60),
+                              fontSize: 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            voucher.discountType == 'fixed'
+                                ? 'RM${voucher.discountValue.toStringAsFixed(2)} off'
+                                : '${voucher.discountValue.toInt()}% off',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
               onChanged: (value) {
                 setState(() {
                   _selectedVoucher = value;
@@ -1284,7 +1281,7 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   // ============================================================
-  // Navigation
+  // ⭐ Navigation（添加了 vehicleName 和 vehiclePlate）
   // ============================================================
 
   void _handleProceed() async {
@@ -1296,7 +1293,6 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
-    // ⭐ 验证 Pump Number 是否已选
     if (_pumpNumber == null) {
       _showError('Please select a pump number');
       return;
@@ -1324,7 +1320,9 @@ class _PaymentPageState extends State<PaymentPage> {
         'stationName': widget.stationName,
         'stationAddress': widget.stationAddress,
         'vehicleId': serverVehicleId,
-        'pumpNumber': _pumpNumber!, // ⭐ 现在一定有值
+        'vehicleName': selectedVehicle.vehicleName,   // ⭐ 新增
+        'vehiclePlate': selectedVehicle.plateNumber,  // ⭐ 新增
+        'pumpNumber': _pumpNumber!,
         'fuelType': _selectedFuelType!.label,
         'quantityLiters': _liters,
         'pricePerLiter': _pricePerLiter,

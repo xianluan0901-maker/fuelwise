@@ -213,6 +213,8 @@ class PaymentService {
     required String stationName,
     String? stationAddress,
     String? vehicleId,
+    String? vehicleName,      // ⭐ 新增
+    String? vehiclePlate,     // ⭐ 新增
     required int pumpNumber,
     required String fuelType,
     required double quantityLiters,
@@ -272,6 +274,8 @@ class PaymentService {
       stationName: stationName,
       stationAddress: stationAddress,
       vehicleId: vehicleId,
+      vehicleName: vehicleName,      // ⭐ 新增
+      vehiclePlate: vehiclePlate,    // ⭐ 新增
       pumpNumber: pumpNumber,
       fuelType: fuelType,
       quantityLiters: quantityLiters,

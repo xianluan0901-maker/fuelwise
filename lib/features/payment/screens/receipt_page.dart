@@ -102,6 +102,10 @@ class ReceiptPage extends StatelessWidget {
     );
   }
 
+  // ============================================================
+  // ⭐ 只改了这个方法：加了车辆信息
+  // ============================================================
+
   Widget _buildTransactionDetails() {
     return Container(
       padding: const EdgeInsets.all(17),
@@ -129,21 +133,35 @@ class ReceiptPage extends StatelessWidget {
             ),
           ),
           const Divider(color: Color(0xFFE4EBF2), height: 20),
+
+          // ⭐ Station 信息
           _buildDetailRow('⛽ Station', transaction.stationName),
+
+          // ⭐ 新增：车辆信息（如果有）
+          if (transaction.vehicleName != null && transaction.vehiclePlate != null)
+            _buildDetailRow(
+              '🚗 Vehicle',
+              '${transaction.vehicleName} (${transaction.vehiclePlate})',
+            ),
+
           if (transaction.stationAddress != null)
             _buildDetailRow('📍 Address', transaction.stationAddress!),
+
           _buildDetailRow('🔢 Pump', '${transaction.pumpNumber}'),
           _buildDetailRow('⛽ Fuel', transaction.fuelType),
           _buildDetailRow('📊 Quantity', '${transaction.quantityLiters.toStringAsFixed(1)} L'),
           _buildDetailRow('💰 Subtotal', 'RM${transaction.subtotal.toStringAsFixed(2)}'),
+
           if (transaction.voucherDiscount > 0)
             _buildDetailRow('🎫 Discount', '-RM${transaction.voucherDiscount.toStringAsFixed(2)}', valueColor: Colors.green),
+
           _buildDetailRow(
             '💳 Total Amount',
             'RM${transaction.totalAmount.toStringAsFixed(2)}',
             isBold: true,
             valueColor: const Color(0xFF1687E8),
           ),
+
           _buildDetailRow('💳 Paid Via', transaction.paymentMethod),
           _buildDetailRow('⭐ Points Earned', '+${transaction.pointsEarned} pts', valueColor: Colors.orange),
           _buildDetailRow('📅 Date & Time', _formatDate(transaction.createdAt)),
