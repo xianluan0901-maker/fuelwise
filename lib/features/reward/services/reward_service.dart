@@ -1,3 +1,5 @@
+// lib/features/reward/services/reward_service.dart
+
 import '../../payment/models/payment_model.dart';
 import '../../payment/services/payment_service.dart';
 
@@ -14,6 +16,11 @@ class RewardService {
 
   Future<List<UserVoucher>> getRedemptionHistory(String userId) {
     return _paymentService.getUserVouchers(userId);
+  }
+
+
+  Future<List<UserVoucher>> getAvailableUserVouchers(String userId) {
+    return _paymentService.getAvailableUserVouchers(userId);
   }
 
   Future<bool> redeemReward({
