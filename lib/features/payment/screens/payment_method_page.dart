@@ -20,26 +20,49 @@ class PaymentMethodPage extends StatefulWidget {
 class _PaymentMethodPageState extends State<PaymentMethodPage> {
   final PaymentService _paymentService = PaymentService();
 
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   PaymentMethod? _selectedMethod;
   bool _isProcessing = false;
 
+  // ============================================================
+  // Track whether each field has been touched
+  // ============================================================
+
+  final Map<String, bool> _fieldTouched = {
+    'cardNumber': false,
+    'expiry': false,
+    'cvv': false,
+    'cardholderName': false,
+    'phone': false,
+    'pin': false,
+  };
+
+  // ============================================================
   // Credit Card Controllers
-  final TextEditingController _cardNumberController = TextEditingController();
-  final TextEditingController _expiryController = TextEditingController();
-  final TextEditingController _cvvController = TextEditingController();
-  final TextEditingController _cardholderNameController = TextEditingController();
+  // ============================================================
 
+  final TextEditingController _cardNumberController =
+  TextEditingController();
+
+  final TextEditingController _expiryController =
+  TextEditingController();
+
+  final TextEditingController _cvvController =
+  TextEditingController();
+
+  final TextEditingController _cardholderNameController =
+  TextEditingController();
+
+  // ============================================================
   // Touch n Go Controllers
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _pinController = TextEditingController();
+  // ============================================================
 
-  // Validation states
-  bool _isCardNumberValid = false;
-  bool _isExpiryValid = false;
-  bool _isCvvValid = false;
-  bool _isCardholderNameValid = false;
-  bool _isPhoneValid = false;
-  bool _isPinValid = false;
+  final TextEditingController _phoneController =
+  TextEditingController();
+
+  final TextEditingController _pinController =
+  TextEditingController();
 
   // ============================================================
   // Computed Properties
@@ -47,16 +70,19 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
 
   double get _totalAmount => widget.paymentData['totalAmount'] ?? 0;
 
-  bool get _canPay {
-    if (_selectedMethod == null) return false;
+  // ============================================================
+  // Validation Helpers
+  // ============================================================
 
-    if (_selectedMethod == PaymentMethod.creditCard) {
-      return _isCardNumberValid &&
-          _isExpiryValid &&
-          _isCvvValid &&
-          _isCardholderNameValid;
-    } else {
-      return _isPhoneValid && _isPinValid;
+  bool _isTouched(String field) {
+    return _fieldTouched[field] ?? false;
+  }
+
+  void _markFieldTouched(String field) {
+    if (!_isTouched(field)) {
+      setState(() {
+        _fieldTouched[field] = true;
+      });
     }
   }
 
@@ -64,38 +90,165 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   // Validation Methods
   // ============================================================
 
-  bool _validateCardNumber(String value) {
+  String? validateCardNumber(String? value) {
+    // Do not show error before user interacts with this field.
+    if (!_isTouched('cardNumber')) {
+      return null;
+    }
+
+    if (value == null || value.isEmpty) {
+      return 'Please enter card number';
+    }
+
     final cleaned = value.replaceAll(' ', '');
-    return cleaned.length == 16 && RegExp(r'^\d+$').hasMatch(cleaned);
+
+    if (cleaned.length != 16) {
+      return 'Card number must be 16 digits';
+    }
+
+    if (!RegExp(r'^\d+$').hasMatch(cleaned)) {
+      return 'Numbers only, no letters or symbols';
+    }
+
+    return null;
   }
 
-  bool _validateExpiry(String value) {
+  String? validateExpiry(String? value) {
+    // Do not show error before user interacts with this field.
+    if (!_isTouched('expiry')) {
+      return null;
+    }
+
+    if (value == null || value.isEmpty) {
+      return 'Please enter expiry date';
+    }
+
     final regExp = RegExp(r'^(0[1-9]|1[0-2])\/([0-9]{2})$');
-    if (!regExp.hasMatch(value)) return false;
+
+    if (!regExp.hasMatch(value)) {
+      return 'Invalid format (MM/YY)';
+    }
 
     final parts = value.split('/');
     final month = int.parse(parts[0]);
-    final year = int.parse('20${parts[1]}');
+    final yearTwoDigits = int.parse(parts[1]);
+
+    final currentYear = DateTime.now().year;
+    final currentTwoDigits = currentYear % 100;
+    final currentCentury = (currentYear ~/ 100) * 100;
+
+    int year;
+
+    if (yearTwoDigits > currentTwoDigits + 5) {
+      year = currentCentury - 100 + yearTwoDigits;
+    } else {
+      year = currentCentury + yearTwoDigits;
+    }
+
+    final expiryDate = DateTime(year, month);
     final now = DateTime.now();
 
-    return year > now.year || (year == now.year && month >= now.month);
+    if (expiryDate.isBefore(
+      DateTime(now.year, now.month, 1),
+    )) {
+      return 'Card has expired, please check';
+    }
+
+    return null;
   }
 
-  bool _validateCvv(String value) {
-    return value.length == 3 && RegExp(r'^\d+$').hasMatch(value);
+  String? validateCvv(String? value) {
+    // Do not show error before user interacts with this field.
+    if (!_isTouched('cvv')) {
+      return null;
+    }
+
+    if (value == null || value.isEmpty) {
+      return 'Please enter CVV';
+    }
+
+    if (value.length != 3) {
+      return 'CVV must be 3 digits';
+    }
+
+    if (!RegExp(r'^\d+$').hasMatch(value)) {
+      return 'Numbers only';
+    }
+
+    return null;
   }
 
-  bool _validateCardholderName(String value) {
-    return value.trim().length >= 2;
+  String? validateCardholderName(String? value) {
+    // Do not show error before user interacts with this field.
+    if (!_isTouched('cardholderName')) {
+      return null;
+    }
+
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter cardholder name';
+    }
+
+    final trimmed = value.trim();
+
+    if (trimmed.length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+
+    if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(trimmed)) {
+      return 'Letters and spaces only';
+    }
+
+    return null;
   }
 
-  bool _validatePhone(String value) {
-    final cleaned = value.replaceAll(' ', '').replaceAll('-', '');
-    return cleaned.startsWith('01') && cleaned.length >= 10 && cleaned.length <= 11;
+  String? validatePhone(String? value) {
+    // Do not show error before user interacts with this field.
+    if (!_isTouched('phone')) {
+      return null;
+    }
+
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter phone number';
+    }
+
+    final cleaned = value
+        .replaceAll(' ', '')
+        .replaceAll('-', '');
+
+    if (!cleaned.startsWith('01')) {
+      return 'Must start with 01';
+    }
+
+    if (cleaned.length < 10 || cleaned.length > 11) {
+      return 'Phone must be 10-11 digits';
+    }
+
+    if (!RegExp(r'^\d+$').hasMatch(cleaned)) {
+      return 'Numbers only';
+    }
+
+    return null;
   }
 
-  bool _validatePin(String value) {
-    return value.length == 6 && RegExp(r'^\d+$').hasMatch(value);
+  String? validatePin(String? value) {
+    // Do not show error before user interacts with this field.
+    if (!_isTouched('pin')) {
+      return null;
+    }
+
+    if (value == null || value.isEmpty) {
+      return 'Please enter TnG PIN';
+    }
+
+    if (value.length != 6) {
+      return 'PIN must be 6 digits';
+    }
+
+    if (!RegExp(r'^\d+$').hasMatch(value)) {
+      return 'Numbers only';
+    }
+
+    return null;
   }
 
   // ============================================================
@@ -110,6 +263,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     _cardholderNameController.dispose();
     _phoneController.dispose();
     _pinController.dispose();
+
     super.dispose();
   }
 
@@ -139,11 +293,17 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildAmountSection(),
+
             const SizedBox(height: 20),
+
             _buildMethodSelector(),
+
             const SizedBox(height: 20),
+
             if (_selectedMethod != null) _buildPaymentForm(),
+
             const SizedBox(height: 24),
+
             _buildPayButton(),
           ],
         ),
@@ -152,7 +312,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   }
 
   // ============================================================
-  // UI Components
+  // Amount Section
   // ============================================================
 
   Widget _buildAmountSection() {
@@ -194,6 +354,10 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     );
   }
 
+  // ============================================================
+  // Payment Method Selector
+  // ============================================================
+
   Widget _buildMethodSelector() {
     return Container(
       padding: const EdgeInsets.all(17),
@@ -222,7 +386,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
               fontWeight: FontWeight.bold,
             ),
           ),
+
           const SizedBox(height: 12),
+
           Row(
             children: [
               Expanded(
@@ -232,7 +398,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                   label: 'Credit/Debit Card',
                 ),
               ),
+
               const SizedBox(width: 12),
+
               Expanded(
                 child: _buildMethodChip(
                   method: PaymentMethod.touchNGo,
@@ -258,16 +426,31 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
       onTap: () {
         setState(() {
           _selectedMethod = method;
+
+          // Reset validation state when switching payment method.
+          _fieldTouched.updateAll(
+                (key, value) => false,
+          );
         });
+
+        // Reset form validation state.
+        _formKey.currentState?.reset();
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        padding: const EdgeInsets.symmetric(
+          vertical: 14,
+          horizontal: 8,
+        ),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1687E8) : const Color(0xFFF8FAFC),
+          color: isSelected
+              ? const Color(0xFF1687E8)
+              : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFF1687E8) : const Color(0xFFDCE5ED),
+            color: isSelected
+                ? const Color(0xFF1687E8)
+                : const Color(0xFFDCE5ED),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -275,17 +458,25 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.white : const Color(0xFF718096),
+              color: isSelected
+                  ? Colors.white
+                  : const Color(0xFF718096),
               size: 28,
             ),
+
             const SizedBox(height: 4),
+
             Text(
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF153B60),
+                color: isSelected
+                    ? Colors.white
+                    : const Color(0xFF153B60),
                 fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
           ],
@@ -294,12 +485,16 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     );
   }
 
+  // ============================================================
+  // Payment Form
+  // ============================================================
+
   Widget _buildPaymentForm() {
     if (_selectedMethod == PaymentMethod.creditCard) {
       return _buildCreditCardForm();
-    } else {
-      return _buildTouchNGoForm();
     }
+
+    return _buildTouchNGoForm();
   }
 
   // ============================================================
@@ -324,6 +519,11 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
         ],
       ),
       child: Form(
+        key: _formKey,
+
+        // Validation is controlled by _fieldTouched.
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -335,142 +535,168 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 16),
-            _buildTextField(
+
+            // ====================================================
+            // Card Number
+            // ====================================================
+
+            TextFormField(
               controller: _cardNumberController,
-              label: 'Card Number',
-              hint: '1234 5678 9012 3456',
-              icon: Icons.credit_card_rounded,
               keyboardType: TextInputType.number,
               maxLength: 19,
+              validator: validateCardNumber,
+
               onChanged: (value) {
-                setState(() {
-                  _isCardNumberValid = _validateCardNumber(value);
-                });
-              },
-              formatter: (value) {
+                _markFieldTouched('cardNumber');
+
+                // Auto-format: add space every 4 digits.
                 final cleaned = value.replaceAll(' ', '');
+
                 final chunks = <String>[];
+
                 for (int i = 0; i < cleaned.length; i += 4) {
-                  chunks.add(cleaned.substring(
-                    i,
-                    i + 4 > cleaned.length ? cleaned.length : i + 4,
-                  ));
+                  final end =
+                  i + 4 > cleaned.length
+                      ? cleaned.length
+                      : i + 4;
+
+                  chunks.add(
+                    cleaned.substring(i, end),
+                  );
                 }
-                return chunks.join(' ');
+
+                final formatted = chunks.join(' ');
+
+                if (formatted != _cardNumberController.text) {
+                  _cardNumberController.value =
+                      TextEditingValue(
+                        text: formatted,
+                        selection: TextSelection.collapsed(
+                          offset: formatted.length,
+                        ),
+                      );
+                }
               },
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter card number';
-                }
-                final cleaned = value.replaceAll(' ', '');
-                if (cleaned.length != 16) {
-                  return 'Card number must be 16 digits';
-                }
-                if (!RegExp(r'^\d+$').hasMatch(cleaned)) {
-                  return 'Card number must contain only numbers';
-                }
-                return null;
-              },
+
+              decoration: _buildInputDecoration(
+                label: 'Card Number',
+                hint: '1234 5678 9012 3456',
+                icon: Icons.credit_card_rounded,
+              ),
             ),
+
             const SizedBox(height: 14),
+
+            // ====================================================
+            // Expiry + CVV
+            // ====================================================
+
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Expiry Date
                 Expanded(
-                  child: _buildTextField(
+                  flex: 6,
+                  child: TextFormField(
                     controller: _expiryController,
-                    label: 'Expiry Date',
-                    hint: 'MM/YY',
-                    icon: Icons.calendar_today_rounded,
+                    keyboardType: TextInputType.number,
                     maxLength: 5,
+                    validator: validateExpiry,
+
                     onChanged: (value) {
-                      setState(() {
-                        _isExpiryValid = _validateExpiry(value);
-                      });
+                      _markFieldTouched('expiry');
+
+                      // Auto-add slash after MM.
+                      final cleaned =
+                      value.replaceAll('/', '');
+
+                      if (cleaned.length >= 2 &&
+                          !value.contains('/')) {
+                        final formatted =
+                            '${cleaned.substring(0, 2)}/${cleaned.substring(2)}';
+
+                        _expiryController.value =
+                            TextEditingValue(
+                              text: formatted,
+                              selection:
+                              TextSelection.collapsed(
+                                offset: formatted.length,
+                              ),
+                            );
+                      }
                     },
-                    formatter: (value) {
-                      final cleaned = value.replaceAll('/', '');
-                      if (cleaned.length >= 2) {
-                        return '${cleaned.substring(0, 2)}/${cleaned.substring(2)}';
-                      }
-                      return cleaned;
-                    },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter expiry date';
-                      }
-                      if (!RegExp(r'^(0[1-9]|1[0-2])\/([0-9]{2})$').hasMatch(value)) {
-                        return 'Invalid format (MM/YY)';
-                      }
-                      final parts = value.split('/');
-                      final month = int.parse(parts[0]);
-                      final year = int.parse('20${parts[1]}');
-                      final now = DateTime.now();
-                      if (year < now.year || (year == now.year && month < now.month)) {
-                        return 'Card has expired';
-                      }
-                      return null;
-                    },
+
+                    decoration: _buildInputDecoration(
+                      label: 'Expiry Date',
+                      hint: 'MM/YY',
+                      icon: Icons.calendar_today_rounded,
+
+                      // Important:
+                      // Allow expiry error message to wrap
+                      // instead of being cut off.
+                      errorMaxLines: 2,
+                    ),
                   ),
                 ),
+
                 const SizedBox(width: 12),
+
+                // CVV
                 Expanded(
-                  child: _buildTextField(
+                  flex: 4,
+                  child: TextFormField(
                     controller: _cvvController,
-                    label: 'CVV',
-                    hint: '123',
-                    icon: Icons.security_rounded,
                     keyboardType: TextInputType.number,
                     maxLength: 3,
                     obscureText: true,
+                    validator: validateCvv,
+
                     onChanged: (value) {
-                      setState(() {
-                        _isCvvValid = _validateCvv(value);
-                      });
+                      _markFieldTouched('cvv');
                     },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter CVV';
-                      }
-                      if (value.length != 3) {
-                        return 'CVV must be 3 digits';
-                      }
-                      if (!RegExp(r'^\d+$').hasMatch(value)) {
-                        return 'CVV must contain only numbers';
-                      }
-                      return null;
-                    },
+
+                    decoration: _buildInputDecoration(
+                      label: 'CVV',
+                      hint: '123',
+                      icon: Icons.security_rounded,
+
+                      errorMaxLines: 2,
+                    ),
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 14),
-            _buildTextField(
+
+            // ====================================================
+            // Cardholder Name
+            // ====================================================
+
+            TextFormField(
               controller: _cardholderNameController,
-              label: 'Cardholder Name',
-              hint: 'AHMAD BIN ABDULLAH',
-              icon: Icons.person_rounded,
               textCapitalization: TextCapitalization.characters,
+              validator: validateCardholderName,
+
               onChanged: (value) {
-                setState(() {
-                  _isCardholderNameValid = _validateCardholderName(value);
-                });
+                _markFieldTouched('cardholderName');
               },
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter cardholder name';
-                }
-                if (value.trim().length < 2) {
-                  return 'Name must be at least 2 characters';
-                }
-                return null;
-              },
+
+              decoration: _buildInputDecoration(
+                label: 'Cardholder Name',
+                hint: 'AHMAD BIN ABDULLAH',
+                icon: Icons.person_rounded,
+                errorMaxLines: 2,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
   // ============================================================
   // Touch n Go Form
   // ============================================================
@@ -493,6 +719,10 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
         ],
       ),
       child: Form(
+        key: _formKey,
+
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -504,61 +734,53 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 16),
-            _buildTextField(
+
+            // ====================================================
+            // Phone Number
+            // ====================================================
+
+            TextFormField(
               controller: _phoneController,
-              label: 'Phone Number',
-              hint: '012-3456789',
-              icon: Icons.phone_rounded,
               keyboardType: TextInputType.phone,
+              validator: validatePhone,
+
               onChanged: (value) {
-                setState(() {
-                  _isPhoneValid = _validatePhone(value);
-                });
+                _markFieldTouched('phone');
               },
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter phone number';
-                }
-                final cleaned = value.replaceAll(' ', '').replaceAll('-', '');
-                if (!cleaned.startsWith('01')) {
-                  return 'Must start with 01';
-                }
-                if (cleaned.length < 10 || cleaned.length > 11) {
-                  return 'Invalid phone number';
-                }
-                if (!RegExp(r'^\d+$').hasMatch(cleaned)) {
-                  return 'Must contain only numbers';
-                }
-                return null;
-              },
+
+              decoration: _buildInputDecoration(
+                label: 'Phone Number',
+                hint: '012-3456789',
+                icon: Icons.phone_rounded,
+                errorMaxLines: 2,
+              ),
             ),
+
             const SizedBox(height: 14),
-            _buildTextField(
+
+            // ====================================================
+            // TnG PIN
+            // ====================================================
+
+            TextFormField(
               controller: _pinController,
-              label: 'TnG PIN',
-              hint: '123456',
-              icon: Icons.lock_rounded,
               keyboardType: TextInputType.number,
               maxLength: 6,
               obscureText: true,
+              validator: validatePin,
+
               onChanged: (value) {
-                setState(() {
-                  _isPinValid = _validatePin(value);
-                });
+                _markFieldTouched('pin');
               },
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter TnG PIN';
-                }
-                if (value.length != 6) {
-                  return 'PIN must be 6 digits';
-                }
-                if (!RegExp(r'^\d+$').hasMatch(value)) {
-                  return 'PIN must contain only numbers';
-                }
-                return null;
-              },
+
+              decoration: _buildInputDecoration(
+                label: 'TnG PIN',
+                hint: '123456',
+                icon: Icons.lock_rounded,
+                errorMaxLines: 2,
+              ),
             ),
           ],
         ),
@@ -567,74 +789,74 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   }
 
   // ============================================================
-  // Reusable TextField
+  // Reusable Input Decoration
   // ============================================================
 
-  Widget _buildTextField({
-    required TextEditingController controller,
+  InputDecoration _buildInputDecoration({
     required String label,
     required String hint,
     required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    TextCapitalization textCapitalization = TextCapitalization.none,
-    int? maxLength,
-    bool obscureText = false,
-    required Function(String) onChanged,
-    String Function(String)? formatter,
-    String? Function(String?)? validator,
+    int errorMaxLines = 2,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      textCapitalization: textCapitalization,
-      obscureText: obscureText,
-      maxLength: maxLength,
-      validator: validator,
-      onChanged: (value) {
-        if (formatter != null) {
-          final formatted = formatter(value);
-          if (formatted != value) {
-            controller.value = TextEditingValue(
-              text: formatted,
-              selection: TextSelection.collapsed(offset: formatted.length),
-            );
-          }
-        }
-        onChanged(controller.text);
-      },
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF1687E8)),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        counterText: '',
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(
-            color: Color(0xFFDCE5ED),
-          ),
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+
+      prefixIcon: Icon(
+        icon,
+        color: const Color(0xFF1687E8),
+      ),
+
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+
+      counterText: '',
+
+      isDense: true,
+
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 16,
+        horizontal: 12,
+      ),
+
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: const BorderSide(
+          color: Color(0xFFDCE5ED),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(
-            color: Color(0xFF1687E8),
-            width: 2,
-          ),
+      ),
+
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: const BorderSide(
+          color: Color(0xFF1687E8),
+          width: 2,
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(
-            color: Colors.redAccent,
-          ),
+      ),
+
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: const BorderSide(
+          color: Colors.redAccent,
         ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(
-            color: Colors.redAccent,
-            width: 2,
-          ),
+      ),
+
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: const BorderSide(
+          color: Colors.redAccent,
+          width: 2,
         ),
+      ),
+
+      // Important for long error messages.
+      errorMaxLines: errorMaxLines,
+
+      errorStyle: const TextStyle(
+        color: Colors.redAccent,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
       ),
     );
   }
@@ -647,15 +869,20 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _isProcessing || !_canPay ? null : _handlePayment,
+        onPressed:
+        _isProcessing ? null : _handlePayment,
+
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(
+            vertical: 16,
+          ),
           backgroundColor: const Color(0xFF1687E8),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
         ),
+
         child: _isProcessing
             ? const SizedBox(
           height: 22,
@@ -676,105 +903,66 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     );
   }
 
-  bool _validateForm() {
-    if (_selectedMethod == PaymentMethod.creditCard) {
-
-      final cardNumber = _cardNumberController.text.replaceAll(' ', '');
-      if (cardNumber.length != 16 || !RegExp(r'^\d+$').hasMatch(cardNumber)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid 16-digit card number'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return false;
-      }
-
-      final expiry = _expiryController.text;
-      if (!RegExp(r'^(0[1-9]|1[0-2])\/([0-9]{2})$').hasMatch(expiry)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid expiry date (MM/YY)'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return false;
-      }
-
-      final cvv = _cvvController.text;
-      if (cvv.length != 3 || !RegExp(r'^\d+$').hasMatch(cvv)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid 3-digit CVV'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return false;
-      }
-
-      final name = _cardholderNameController.text.trim();
-      if (name.length < 2) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter cardholder name'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return false;
-      }
-
-      return true;
-    } else {
-      final phone = _phoneController.text.replaceAll(' ', '').replaceAll('-', '');
-      if (!phone.startsWith('01') || phone.length < 10 || phone.length > 11) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid phone number (01X-XXXXXXX)'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return false;
-      }
-
-      final pin = _pinController.text;
-      if (pin.length != 6 || !RegExp(r'^\d+$').hasMatch(pin)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid 6-digit TnG PIN'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return false;
-      }
-
-      return true;
-    }
-  }
-
   // ============================================================
   // Payment Processing
   // ============================================================
 
   void _handlePayment() async {
-    if (!_validateForm()) {
+    // ==========================================================
+    // User pressed Pay Now.
+    // At this point, show validation errors for ALL fields.
+    // ==========================================================
+
+    setState(() {
+      _fieldTouched.updateAll(
+            (key, value) => true,
+      );
+    });
+
+    final isValid =
+        _formKey.currentState?.validate() ?? false;
+
+    if (!isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please fill in all required fields correctly',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
       return;
     }
 
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+    });
 
     try {
-      final transaction = await _paymentService.processPayment(
+      final transaction =
+      await _paymentService.processPayment(
         userId: widget.paymentData['userId'],
         placeId: widget.paymentData['placeId'],
-        stationName: widget.paymentData['stationName'],
-        stationAddress: widget.paymentData['stationAddress'],
-        vehicleId: widget.paymentData['vehicleId'],
-        pumpNumber: widget.paymentData['pumpNumber'],
-        fuelType: widget.paymentData['fuelType'],
-        quantityLiters: widget.paymentData['quantityLiters'],
-        pricePerLiter: widget.paymentData['pricePerLiter'],
-        voucherId: widget.paymentData['voucherId'],
-        paymentMethod: _selectedMethod!.label,
+        stationName:
+        widget.paymentData['stationName'],
+        stationAddress:
+        widget.paymentData['stationAddress'],
+        vehicleId:
+        widget.paymentData['vehicleId'],
+        pumpNumber:
+        widget.paymentData['pumpNumber'],
+        fuelType:
+        widget.paymentData['fuelType'],
+        quantityLiters:
+        widget.paymentData['quantityLiters'],
+        pricePerLiter:
+        widget.paymentData['pricePerLiter'],
+        voucherId:
+        widget.paymentData['voucherId'],
+        paymentMethod:
+        _selectedMethod!.label,
       );
 
       if (!mounted) return;
@@ -782,7 +970,10 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => ReceiptPage(transaction: transaction),
+          builder: (context) =>
+              ReceiptPage(
+                transaction: transaction,
+              ),
         ),
       );
     } catch (e) {
@@ -790,13 +981,17 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Payment failed: $e'),
+          content: Text(
+            'Payment failed: $e',
+          ),
           backgroundColor: Colors.redAccent,
         ),
       );
     } finally {
       if (mounted) {
-        setState(() => _isProcessing = false);
+        setState(() {
+          _isProcessing = false;
+        });
       }
     }
   }

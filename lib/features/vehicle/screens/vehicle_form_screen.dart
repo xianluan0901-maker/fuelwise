@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/vehicle_model.dart';
 import '../services/vehicle_service.dart';
+import '../validators/vehicle_validators.dart';
 
 class VehicleFormScreen extends StatefulWidget {
   final Vehicle? vehicle;
@@ -21,34 +22,17 @@ class VehicleFormScreen extends StatefulWidget {
   }
 }
 
-class _VehicleFormScreenState
-    extends State<VehicleFormScreen> {
-  final GlobalKey<FormState> _formKey =
-  GlobalKey<FormState>();
+class _VehicleFormScreenState extends State<VehicleFormScreen> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final VehicleService _vehicleService = VehicleService();
 
-  final VehicleService _vehicleService =
-  VehicleService();
-
-  late final TextEditingController
-  _vehicleNameController;
-
-  late final TextEditingController
-  _plateNumberController;
-
-  late final TextEditingController
-  _brandController;
-
-  late final TextEditingController
-  _modelController;
-
-  late final TextEditingController
-  _yearController;
-
-  late final TextEditingController
-  _fuelEfficiencyController;
-
-  late final TextEditingController
-  _tankCapacityController;
+  late final TextEditingController _vehicleNameController;
+  late final TextEditingController _plateNumberController;
+  late final TextEditingController _brandController;
+  late final TextEditingController _modelController;
+  late final TextEditingController _yearController;
+  late final TextEditingController _fuelEfficiencyController;
+  late final TextEditingController _tankCapacityController;
 
   String _selectedFuelType = 'RON95';
   bool _isSaving = false;
@@ -61,15 +45,13 @@ class _VehicleFormScreenState
 
     final vehicle = widget.vehicle;
 
-    _vehicleNameController =
-        TextEditingController(
-          text: vehicle?.vehicleName ?? '',
-        );
+    _vehicleNameController = TextEditingController(
+      text: vehicle?.vehicleName ?? '',
+    );
 
-    _plateNumberController =
-        TextEditingController(
-          text: vehicle?.plateNumber ?? '',
-        );
+    _plateNumberController = TextEditingController(
+      text: vehicle?.plateNumber ?? '',
+    );
 
     _brandController = TextEditingController(
       text: vehicle?.brand ?? '',
@@ -80,24 +62,18 @@ class _VehicleFormScreenState
     );
 
     _yearController = TextEditingController(
-      text: vehicle?.manufactureYear?.toString() ??
-          '',
+      text: vehicle?.manufactureYear?.toString() ?? '',
     );
 
-    _fuelEfficiencyController =
-        TextEditingController(
-          text: vehicle?.fuelEfficiency?.toString() ??
-              '',
-        );
+    _fuelEfficiencyController = TextEditingController(
+      text: vehicle?.fuelEfficiency?.toString() ?? '',
+    );
 
-    _tankCapacityController =
-        TextEditingController(
-          text: vehicle?.tankCapacity?.toString() ??
-              '',
-        );
+    _tankCapacityController = TextEditingController(
+      text: vehicle?.tankCapacity?.toString() ?? '',
+    );
 
-    _selectedFuelType =
-        vehicle?.fuelType ?? 'RON95';
+    _selectedFuelType = vehicle?.fuelType ?? 'RON95';
   }
 
   @override
@@ -113,57 +89,101 @@ class _VehicleFormScreenState
     super.dispose();
   }
 
-  Future<void> _saveVehicle() async {
-    final valid =
-        _formKey.currentState?.validate() ?? false;
+  Future<bool> _confirmUnusualValues({
+    double? fuelEfficiency,
+    double? tankCapacity,
+  }) async {
+    final values = VehicleValidators.unusualValues(
+      fuelEfficiency: fuelEfficiency,
+      tankCapacity: tankCapacity,
+    );
 
-    if (!valid || _isSaving) {
-      return;
-    }
+    if (values.isEmpty) return true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Double-check these values'),
+          content: Text(
+            '${values.join('\n')}\n\n'
+                'These values are unusual for a passenger car. '
+                'Please check your vehicle specifications and the units.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Review'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Values are correct'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed ?? false;
+  }
+
+  Future<void> _saveVehicle() async {
+    if (_isSaving) return;
+
+    final valid = _formKey.currentState?.validate() ?? false;
+
+    if (!valid) return;
 
     FocusScope.of(context).unfocus();
+
+    // Capture the validated values before any asynchronous work.
+    final vehicleName = _vehicleNameController.text.trim();
+    final plateNumber = VehicleValidators.normalizePlate(
+      _plateNumberController.text,
+    );
+    final brand = _brandController.text.trim();
+    final model = _modelController.text.trim();
+    final manufactureYear = _parseInt(_yearController.text);
+    final fuelEfficiency = _parseDouble(_fuelEfficiencyController.text);
+    final tankCapacity = _parseDouble(_tankCapacityController.text);
+    final fuelType = _selectedFuelType;
 
     setState(() {
       _isSaving = true;
     });
 
     try {
-      final manufactureYear = _parseInt(
-        _yearController.text,
+      final confirmed = await _confirmUnusualValues(
+        fuelEfficiency: fuelEfficiency,
+        tankCapacity: tankCapacity,
       );
 
-      final fuelEfficiency = _parseDouble(
-        _fuelEfficiencyController.text,
-      );
-
-      final tankCapacity = _parseDouble(
-        _tankCapacityController.text,
-      );
+      if (!mounted || !confirmed) return;
 
       if (_isEditing) {
         await _vehicleService.updateVehicle(
           vehicleId: widget.vehicle!.id,
-          vehicleName:
-          _vehicleNameController.text,
-          plateNumber:
-          _plateNumberController.text,
-          brand: _brandController.text,
-          model: _modelController.text,
+          vehicleName: vehicleName,
+          plateNumber: plateNumber,
+          brand: brand,
+          model: model,
           manufactureYear: manufactureYear,
-          fuelType: _selectedFuelType,
+          fuelType: fuelType,
           fuelEfficiency: fuelEfficiency,
           tankCapacity: tankCapacity,
         );
       } else {
         await _vehicleService.addVehicle(
-          vehicleName:
-          _vehicleNameController.text,
-          plateNumber:
-          _plateNumberController.text,
-          brand: _brandController.text,
-          model: _modelController.text,
+          vehicleName: vehicleName,
+          plateNumber: plateNumber,
+          brand: brand,
+          model: model,
           manufactureYear: manufactureYear,
-          fuelType: _selectedFuelType,
+          fuelType: fuelType,
           fuelEfficiency: fuelEfficiency,
           tankCapacity: tankCapacity,
         );
@@ -172,35 +192,25 @@ class _VehicleFormScreenState
       if (!mounted) return;
 
       Navigator.pop(context, true);
+    } on VehicleValidationException catch (error) {
+      if (!mounted) return;
+
+      _showError(error.message);
     } on PostgrestException catch (error) {
       if (!mounted) return;
 
-      String message = error.message;
+      final message = error.code == '23505'
+          ? 'This plate number is already registered.'
+          : 'Unable to save your vehicle. Please try again.';
 
-      // PostgreSQL unique-constraint error.
-      if (error.code == '23505') {
-        message =
-        'This plate number is already registered.';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showError(message);
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEditing
-                ? 'Unable to update vehicle.'
-                : 'Unable to add vehicle.',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
+      _showError(
+        _isEditing
+            ? 'Unable to update vehicle. Please try again.'
+            : 'Unable to add vehicle. Please try again.',
       );
     } finally {
       if (mounted) {
@@ -211,71 +221,25 @@ class _VehicleFormScreenState
     }
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
+
   int? _parseInt(String value) {
     final cleaned = value.trim();
 
-    if (cleaned.isEmpty) {
-      return null;
-    }
-
-    return int.tryParse(cleaned);
+    return cleaned.isEmpty ? null : int.parse(cleaned);
   }
 
   double? _parseDouble(String value) {
     final cleaned = value.trim();
 
-    if (cleaned.isEmpty) {
-      return null;
-    }
-
-    return double.tryParse(cleaned);
-  }
-
-  String? _requiredValidator(
-      String? value,
-      String fieldName,
-      ) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Please enter $fieldName.';
-    }
-
-    return null;
-  }
-
-  String? _yearValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return null;
-    }
-
-    final year = int.tryParse(value.trim());
-    final maximumYear = DateTime.now().year + 1;
-
-    if (year == null ||
-        year < 1886 ||
-        year > maximumYear) {
-      return 'Enter a valid vehicle year.';
-    }
-
-    return null;
-  }
-
-  String? _positiveNumberValidator(
-      String? value,
-      String fieldName,
-      ) {
-    if (value == null || value.trim().isEmpty) {
-      return null;
-    }
-
-    final number = double.tryParse(
-      value.trim(),
-    );
-
-    if (number == null || number <= 0) {
-      return 'Enter a valid $fieldName.';
-    }
-
-    return null;
+    return cleaned.isEmpty ? null : double.parse(cleaned);
   }
 
   @override
@@ -284,26 +248,19 @@ class _VehicleFormScreenState
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         backgroundColor: const Color(0xFFE1F2FF),
-        centerTitle: true,
         title: Text(
-          _isEditing
-              ? 'Edit Vehicle'
-              : 'Add Vehicle',
+          _isEditing ? 'Edit Vehicle' : 'Add Vehicle',
           style: const TextStyle(
             color: Color(0xFF153B60),
             fontWeight: FontWeight.bold,
           ),
         ),
+        centerTitle: true,
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            18,
-            20,
-            18,
-            40,
-          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 40),
           children: [
             _buildHeader(),
             const SizedBox(height: 22),
@@ -312,47 +269,34 @@ class _VehicleFormScreenState
               icon: Icons.directions_car_rounded,
               children: [
                 _buildTextField(
-                  controller:
-                  _vehicleNameController,
+                  controller: _vehicleNameController,
                   label: 'Vehicle name',
                   hint: 'Example: My Bezza',
                   icon: Icons.label_outline_rounded,
-                  validator: (value) {
-                    return _requiredValidator(
-                      value,
-                      'a vehicle name',
-                    );
-                  },
+                  maxLength: VehicleValidators.maxNameLength,
+                  validator: VehicleValidators.vehicleName,
                 ),
                 const SizedBox(height: 15),
                 _buildTextField(
-                  controller:
-                  _plateNumberController,
+                  controller: _plateNumberController,
                   label: 'Plate number',
                   hint: 'Example: SAB 1234 A',
-                  icon:
-                  Icons.pin_outlined,
-                  textCapitalization:
-                  TextCapitalization.characters,
+                  icon: Icons.pin_outlined,
+                  textCapitalization: TextCapitalization.characters,
                   inputFormatters: [
                     UpperCaseTextFormatter(),
                   ],
-                  validator: (value) {
-                    return _requiredValidator(
-                      value,
-                      'a plate number',
-                    );
-                  },
+                  helperText:
+                  'Spaces are optional. Example: ABC1234 or SAB1234A.',
+                  validator: VehicleValidators.plateNumber,
                 ),
                 const SizedBox(height: 15),
                 Row(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: _buildTextField(
-                        controller:
-                        _brandController,
+                        controller: _brandController,
                         label: 'Brand',
                         hint: 'Perodua',
                         icon: Icons.business_rounded,
@@ -361,12 +305,10 @@ class _VehicleFormScreenState
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildTextField(
-                        controller:
-                        _modelController,
+                        controller: _modelController,
                         label: 'Model',
                         hint: 'Bezza',
-                        icon:
-                        Icons.car_repair_rounded,
+                        icon: Icons.car_repair_rounded,
                       ),
                     ),
                   ],
@@ -376,82 +318,53 @@ class _VehicleFormScreenState
                   controller: _yearController,
                   label: 'Manufacture year',
                   hint: 'Example: 2023',
-                  icon:
-                  Icons.calendar_month_rounded,
-                  keyboardType:
-                  TextInputType.number,
+                  icon: Icons.calendar_month_rounded,
+                  keyboardType: TextInputType.number,
                   inputFormatters: [
-                    FilteringTextInputFormatter
-                        .digitsOnly,
-                    LengthLimitingTextInputFormatter(
-                      4,
-                    ),
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(4),
                   ],
-                  validator: _yearValidator,
+                  validator: VehicleValidators.manufactureYear,
                 ),
               ],
             ),
             const SizedBox(height: 18),
             _buildSection(
               title: 'Fuel Information',
-              icon:
-              Icons.local_gas_station_rounded,
+              icon: Icons.local_gas_station_rounded,
               children: [
                 _buildFuelTypeSelector(),
                 const SizedBox(height: 15),
                 _buildTextField(
-                  controller:
-                  _fuelEfficiencyController,
+                  controller: _fuelEfficiencyController,
                   label: 'Fuel efficiency',
                   hint: 'Example: 18.5',
                   suffix: 'km/L',
                   icon: Icons.speed_rounded,
-                  keyboardType:
-                  const TextInputType
-                      .numberWithOptions(
+                  keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                      RegExp(
-                        r'^\d*\.?\d{0,2}',
-                      ),
-                    ),
+                    VehicleDecimalInputFormatter(),
                   ],
-                  validator: (value) {
-                    return _positiveNumberValidator(
-                      value,
-                      'fuel efficiency',
-                    );
-                  },
+                  validator: VehicleValidators.fuelEfficiency,
+                  helperText: 'Optional. Passenger cars: 1–50 km/L.',
                 ),
                 const SizedBox(height: 15),
                 _buildTextField(
-                  controller:
-                  _tankCapacityController,
+                  controller: _tankCapacityController,
                   label: 'Tank capacity',
                   hint: 'Example: 36',
                   suffix: 'L',
-                  icon:
-                  Icons.oil_barrel_outlined,
-                  keyboardType:
-                  const TextInputType
-                      .numberWithOptions(
+                  icon: Icons.oil_barrel_outlined,
+                  keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                      RegExp(
-                        r'^\d*\.?\d{0,2}',
-                      ),
-                    ),
+                    VehicleDecimalInputFormatter(),
                   ],
-                  validator: (value) {
-                    return _positiveNumberValidator(
-                      value,
-                      'tank capacity',
-                    );
-                  },
+                  validator: VehicleValidators.tankCapacity,
+                  helperText: 'Optional. Passenger cars: 5–200 L.',
                 ),
               ],
             ),
@@ -459,23 +372,19 @@ class _VehicleFormScreenState
             SizedBox(
               height: 52,
               child: ElevatedButton.icon(
-                onPressed:
-                _isSaving ? null : _saveVehicle,
+                onPressed: _isSaving ? null : _saveVehicle,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                  const Color(0xFF1687E8),
+                  backgroundColor: const Color(0xFF1687E8),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                    BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
                 icon: _isSaving
                     ? const SizedBox(
                   width: 19,
                   height: 19,
-                  child:
-                  CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: Colors.white,
                   ),
@@ -533,8 +442,7 @@ class _VehicleFormScreenState
           const SizedBox(width: 14),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   _isEditing
@@ -587,8 +495,7 @@ class _VehicleFormScreenState
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -598,12 +505,14 @@ class _VehicleFormScreenState
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFF153B60),
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFF153B60),
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -621,9 +530,10 @@ class _VehicleFormScreenState
     required String hint,
     required IconData icon,
     String? suffix,
+    int? maxLength,
+    String? helperText,
     TextInputType? keyboardType,
-    TextCapitalization textCapitalization =
-        TextCapitalization.none,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
@@ -633,10 +543,16 @@ class _VehicleFormScreenState
       textCapitalization: textCapitalization,
       inputFormatters: inputFormatters,
       validator: validator,
+      maxLength: maxLength,
+      enabled: !_isSaving,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         suffixText: suffix,
+        helperText: helperText,
+        helperMaxLines: 3,
+        errorMaxLines: 3,
         prefixIcon: Icon(icon),
         filled: true,
         fillColor: const Color(0xFFF8FAFC),
@@ -708,7 +624,9 @@ class _VehicleFormScreenState
           child: Text('Diesel'),
         ),
       ],
-      onChanged: (value) {
+      onChanged: _isSaving
+          ? null
+          : (value) {
         if (value != null) {
           setState(() {
             _selectedFuelType = value;
@@ -719,16 +637,24 @@ class _VehicleFormScreenState
   }
 }
 
-class UpperCaseTextFormatter
-    extends TextInputFormatter {
+class UpperCaseTextFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue,
       TextEditingValue newValue,
       ) {
+    if (!newValue.composing.isCollapsed) return newValue;
+
+    final uppercase = newValue.text.toUpperCase();
+
+    if (uppercase == newValue.text) return newValue;
+
     return newValue.copyWith(
-      text: newValue.text.toUpperCase(),
-      selection: newValue.selection,
+      text: uppercase,
+      selection: uppercase.length == newValue.text.length
+          ? newValue.selection
+          : TextSelection.collapsed(offset: uppercase.length),
+      composing: TextRange.empty,
     );
   }
 }

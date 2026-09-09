@@ -40,7 +40,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Vehicle? _selectedVehicle;
   List<Vehicle> _vehicles = [];
-  int? _pumpNumber;
+  int? _pumpNumber; // ⭐ 没有默认值，用户必须自己选
   FuelType? _selectedFuelType;
   double _liters = 0;
   FuelPrice? _latestPrice;
@@ -106,6 +106,16 @@ class _PaymentPageState extends State<PaymentPage> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _litersController.dispose();
+    super.dispose();
+  }
+
+  // ============================================================
+  // Data Loading
+  // ============================================================
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
@@ -115,11 +125,13 @@ class _PaymentPageState extends State<PaymentPage> {
 
       if (user == null) {
         _showLoginRequired();
+        setState(() => _isLoading = false);
         return;
       }
 
       final prefs = await SharedPreferences.getInstance();
 
+      // --- 1. 加载缓存的燃油价格 ---
       final cachedPriceJson = prefs.getString('cached_fuel_price');
       FuelPrice? cachedPrice;
 
@@ -133,6 +145,7 @@ class _PaymentPageState extends State<PaymentPage> {
         } catch (_) {}
       }
 
+      // --- 2. 获取最新燃油价格 ---
       try {
         final latestPrice = await _fuelPriceService
             .getLatestFuelPrice()
@@ -158,56 +171,59 @@ class _PaymentPageState extends State<PaymentPage> {
         }
       }
 
-      try {
-        final vehicles = await _vehicleService
-            .getVehicles()
-            .timeout(const Duration(seconds: 5));
-
-        setState(() {
-          _vehicles = vehicles;
-        });
-
-        final vehiclesJson = vehicles.map((v) => v.toJson()).toList();
-        await prefs.setString('cached_vehicles', jsonEncode(vehiclesJson));
-      } catch (e) {
-        if (_vehicles.isEmpty) {
-          setState(() {
-            _vehicles = [];
-          });
-        }
-      }
-
-      // Load data in parallel
+      // --- 3. 并行加载：车辆 + Voucher + 积分 ---
       final results = await Future.wait([
         _vehicleService.getVehicles(),
-        _fuelPriceService.getLatestFuelPrice(),
-        _paymentService.getAvailableVouchers(),
+        _paymentService.getAvailableUserVouchers(user.id),
         _paymentService.getUserPoints(user.id),
       ]);
 
       _vehicles = results[0] as List<Vehicle>;
-      _latestPrice = results[1] as FuelPrice;
-      _availableVouchers = results[2] as List<Voucher>;
-      _userPoints = (results[3] as Map<String, dynamic>)['available_points'] ?? 0;
 
-      // Auto-select default vehicle
-      final defaultVehicle = _vehicles.firstWhere(
-            (v) => v.isDefault,
-        orElse: () => _vehicles.isNotEmpty ? _vehicles.first : throw Exception('No vehicle'),
-      );
-      if (defaultVehicle != null) {
-        _selectedVehicle = defaultVehicle;
-        _liters = _selectedVehicle!.tankCapacity != null
-            ? _selectedVehicle!.tankCapacity! * 0.5
-            : 20.0;
+      // ⭐ 从 UserVoucher 列表提取 Voucher
+      final userVouchers = results[1] as List<UserVoucher>;
+      _availableVouchers = userVouchers
+          .where((uv) => uv.isAvailable)
+          .map((uv) => uv.voucher!)
+          .toList();
+
+      _userPoints = (results[2] as Map<String, dynamic>)['available_points'] ?? 0;
+
+      // --- 4. 缓存车辆数据 ---
+      try {
+        final vehiclesJson = _vehicles.map((v) => v.toJson()).toList();
+        await prefs.setString('cached_vehicles', jsonEncode(vehiclesJson));
+      } catch (_) {}
+
+      // --- 5. 自动选择默认车辆 + 自动设置燃油类型 ---
+      if (_vehicles.isNotEmpty) {
+        final defaultVehicle = _vehicles.firstWhere(
+              (v) => v.isDefault,
+          orElse: () => _vehicles.first,
+        );
+
+        final fuelTypeMap = {
+          'RON95': FuelType.ron95,
+          'RON97': FuelType.ron97,
+          'Diesel': FuelType.diesel,
+        };
+
+        setState(() {
+          _selectedVehicle = defaultVehicle;
+          _selectedFuelType = fuelTypeMap[defaultVehicle.fuelType] ?? FuelType.ron95;
+          // 不设置 _liters 初始值，让用户自己输入
+          _litersController.clear();
+        });
       }
 
+      // --- 6. 更新积分预览 ---
       await _updatePoints();
 
       setState(() => _isLoading = false);
     } catch (e) {
+      print('❌ Error loading data: $e');
       setState(() => _isLoading = false);
-      _showError('Unable to load data.');
+      _showError('Unable to load data. Please try again.');
     }
   }
 
@@ -277,15 +293,15 @@ class _PaymentPageState extends State<PaymentPage> {
             const SizedBox(height: 18),
             _buildVehicleSection(),
             const SizedBox(height: 18),
-            _buildPumpSection(),
+            _buildPumpSection(), // ⭐ 已修改：无默认值 + 提示
             const SizedBox(height: 18),
             _buildFuelTypeSection(),
             const SizedBox(height: 18),
             _buildLitersSection(),
             const SizedBox(height: 18),
-            _buildPriceSection(),
-            const SizedBox(height: 18),
             _buildVoucherSection(),
+            const SizedBox(height: 18),
+            _buildPriceSection(),
             const SizedBox(height: 25),
             _buildSubmitButton(),
           ],
@@ -440,7 +456,8 @@ class _PaymentPageState extends State<PaymentPage> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<Vehicle>(
-            initialValue: _selectedVehicle,
+            value: _selectedVehicle,
+            isExpanded: true,
             decoration: InputDecoration(
               hintText: 'Select your vehicle',
               filled: true,
@@ -463,7 +480,7 @@ class _PaymentPageState extends State<PaymentPage> {
               return DropdownMenuItem(
                 value: vehicle,
                 child: Text(
-                  '${vehicle.vehicleName} (${vehicle.plateNumber}) - ${vehicle.tankCapacity?.toStringAsFixed(0)}L',
+                  '${vehicle.vehicleName} (${vehicle.plateNumber})${vehicle.tankCapacity != null ? " - ${vehicle.tankCapacity!.toStringAsFixed(0)}L" : ""}',
                   style: const TextStyle(
                     color: Color(0xFF153B60),
                   ),
@@ -473,10 +490,22 @@ class _PaymentPageState extends State<PaymentPage> {
             onChanged: (value) {
               setState(() {
                 _selectedVehicle = value;
-                if (value?.tankCapacity != null) {
-                  _liters = value!.tankCapacity! * 0.5;
+
+                // 自动更新燃油类型
+                if (value != null) {
+                  final fuelTypeMap = {
+                    'RON95': FuelType.ron95,
+                    'RON97': FuelType.ron97,
+                    'Diesel': FuelType.diesel,
+                  };
+                  _selectedFuelType = fuelTypeMap[value.fuelType] ?? FuelType.ron95;
                 }
+
+                // 切换车辆时清空油量输入
+                _liters = 0;
+                _litersController.clear();
               });
+              _updatePoints();
             },
           ),
           if (_selectedVehicle?.tankCapacity != null)
@@ -494,6 +523,10 @@ class _PaymentPageState extends State<PaymentPage> {
       ),
     );
   }
+
+  // ============================================================
+  // ⭐ Pump Section（无默认值 + 提示）
+  // ============================================================
 
   Widget _buildPumpSection() {
     return Container(
@@ -531,6 +564,25 @@ class _PaymentPageState extends State<PaymentPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              // ⭐ 未选择时显示红色 "Please select" 标签
+              if (_pumpNumber == null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Please select',
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -565,12 +617,83 @@ class _PaymentPageState extends State<PaymentPage> {
               );
             }),
           ),
+          const SizedBox(height: 8),
+          // ⭐ 状态提示
+          if (_pumpNumber != null)
+            Row(
+              children: [
+                const Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Pump $_pumpNumber selected',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Colors.red,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Please select a pump number to continue',
+                  style: TextStyle(
+                    color: Colors.red.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
 
+  // ============================================================
+  // Fuel Type Section（只读显示）
+  // ============================================================
+
   Widget _buildFuelTypeSection() {
+    if (_selectedVehicle == null) {
+      return Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFE4EBF2),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0C000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Text(
+            'Please select a vehicle first',
+            style: TextStyle(
+              color: Color(0xFF718096),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
@@ -608,74 +731,75 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          if (_latestPrice != null) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: FuelType.values.map((type) {
-                double price = 0;
-                switch (type) {
-                  case FuelType.ron95:
-                    price = _latestPrice!.ron95;
-                    break;
-                  case FuelType.ron97:
-                    price = _latestPrice!.ron97;
-                    break;
-                  case FuelType.diesel:
-                    price = _latestPrice!.diesel;
-                    break;
-                }
-                final isSelected = _selectedFuelType == type;
-                return ChoiceChip(
-                  label: Text(
-                    '${type.label} (RM${price.toStringAsFixed(3)})',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    setState(() {
-                      _selectedFuelType = selected ? type : null;
-                    });
-                    _updatePoints();
-                  },
-                  selectedColor: const Color(0xFF1687E8),
-                  backgroundColor: const Color(0xFFF8FAFC),
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : const Color(0xFF153B60),
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: isSelected
-                          ? const Color(0xFF1687E8)
-                          : const Color(0xFFDCE5ED),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ] else ...[
-            const Text(
-              'Loading prices...',
-              style: TextStyle(
-                color: Color(0xFF718096),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F7FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFCCDFFF),
               ),
             ),
-          ],
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.green,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_selectedVehicle!.fuelType}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF153B60),
+                      ),
+                    ),
+                    Text(
+                      'RM${_pricePerLiter.toStringAsFixed(3)} per liter',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF718096),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Based on your vehicle\'s fuel type',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF718096),
+            ),
+          ),
         ],
       ),
     );
   }
 
+  // ============================================================
+  // Quantity Section（带完整验证）
+  // ============================================================
+
   Widget _buildLitersSection() {
+    final bool hasError = _liters > _maxLiters || (_liters <= 0 && _litersController.text.isNotEmpty);
+
     return Container(
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE4EBF2)),
+        border: Border.all(
+          color: hasError ? Colors.red.shade300 : const Color(0xFFE4EBF2),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0C000000),
@@ -715,37 +839,45 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
             ],
             decoration: InputDecoration(
-              hintText: 'Enter liters',  // ← 只有提示，没有默认值
+              hintText: 'Enter liters',
               suffixText: 'L',
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(
-                  color: Color(0xFFDCE5ED),
+                borderSide: BorderSide(
+                  color: hasError ? Colors.red : const Color(0xFFDCE5ED),
                 ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(
-                  color: Color(0xFF1687E8),
+                borderSide: BorderSide(
+                  color: hasError ? Colors.red : const Color(0xFF1687E8),
                   width: 2,
                 ),
+              ),
+              errorText: _liters > _maxLiters
+                  ? 'Maximum capacity is ${_maxLiters.toStringAsFixed(0)}L'
+                  : _liters <= 0 && _litersController.text.isNotEmpty
+                  ? 'Please enter a valid amount'
+                  : null,
+              errorStyle: const TextStyle(
+                color: Colors.red,
+                fontSize: 12,
               ),
             ),
             onChanged: (value) {
               final parsed = double.tryParse(value);
               if (parsed != null && parsed > 0) {
                 setState(() {
-                  _liters = parsed.clamp(1, _maxLiters);
+                  _liters = parsed;
                 });
-                _updatePoints();
               } else {
                 setState(() {
                   _liters = 0;
                 });
-                _updatePoints();
               }
+              _updatePoints();
             },
           ),
           const SizedBox(height: 8),
@@ -754,16 +886,18 @@ class _PaymentPageState extends State<PaymentPage> {
             children: [
               Text(
                 'Min: 1 L',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF718096),
+                  color: _liters > 0 && _liters <= _maxLiters
+                      ? const Color(0xFF718096)
+                      : Colors.red,
                 ),
               ),
               Text(
                 'Max: ${_maxLiters.toStringAsFixed(0)} L',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF718096),
+                  color: _liters > _maxLiters ? Colors.red : const Color(0xFF718096),
                 ),
               ),
             ],
@@ -772,6 +906,179 @@ class _PaymentPageState extends State<PaymentPage> {
       ),
     );
   }
+
+  // ============================================================
+  // Voucher Section
+  // ============================================================
+
+  Widget _buildVoucherSection() {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFE4EBF2),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.local_offer_rounded,
+                    color: Color(0xFF1687E8),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Apply Voucher',
+                    style: TextStyle(
+                      color: Color(0xFF153B60),
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$_userPoints pts',
+                  style: const TextStyle(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          if (_availableVouchers.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              alignment: Alignment.center,
+              child: const Text(
+                'No vouchers available.\nRedeem some with your points!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF718096),
+                  fontSize: 13,
+                ),
+              ),
+            )
+          else
+            DropdownButtonFormField<Voucher>(
+              value: _selectedVoucher,
+              isExpanded: true,
+              hint: const Text(
+                'Select a voucher to apply',
+                style: TextStyle(color: Color(0xFF718096)),
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFDCE5ED),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF1687E8),
+                    width: 2,
+                  ),
+                ),
+              ),
+              items: _availableVouchers.map((voucher) {
+                return DropdownMenuItem(
+                  value: voucher,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          voucher.name,
+                          style: const TextStyle(
+                            color: Color(0xFF153B60),
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          voucher.discountType == 'fixed'
+                              ? 'RM${voucher.discountValue.toStringAsFixed(2)} off'
+                              : '${voucher.discountValue.toInt()}% off',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedVoucher = value;
+                });
+                _updatePoints();
+              },
+            ),
+
+          if (_selectedVoucher != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _selectedVoucher!.description ?? 'No description available',
+                style: const TextStyle(
+                  color: Color(0xFF718096),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // Price Section
+  // ============================================================
 
   Widget _buildPriceSection() {
     if (_selectedFuelType == null) {
@@ -787,6 +1094,27 @@ class _PaymentPageState extends State<PaymentPage> {
         child: const Center(
           child: Text(
             'Please select fuel type first',
+            style: TextStyle(
+              color: Color(0xFF718096),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_liters <= 0) {
+      return Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFE4EBF2),
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            'Please enter quantity',
             style: TextStyle(
               color: Color(0xFF718096),
             ),
@@ -886,196 +1214,37 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF3E0),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFFFFE0B2),
+          if (_pointsEarned > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3E0),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFFFE0B2),
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.star_rounded,
-                  color: Colors.orange,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'You will earn $_pointsEarned points from this purchase',
-                  style: const TextStyle(
-                    color: Color(0xFFE65100),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVoucherSection() {
-    if (_availableVouchers.isEmpty) {
-
-      return Container(
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: const Color(0xFFE4EBF2),
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0C000000),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Center(
-          child: Text(
-            'No vouchers available',
-            style: TextStyle(
-              color: Color(0xFF718096),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFE4EBF2),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0C000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+              child: Row(
                 children: [
                   const Icon(
-                    Icons.local_offer_rounded,
-                    color: Color(0xFF1687E8),
-                    size: 20,
+                    Icons.star_rounded,
+                    color: Colors.orange,
+                    size: 18,
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Apply Voucher',
-                    style: TextStyle(
-                      color: Color(0xFF153B60),
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                  Text(
+                    'You will earn $_pointsEarned points from this purchase',
+                    style: const TextStyle(
+                      color: Color(0xFFE65100),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
                     ),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$_userPoints pts',
-                  style: const TextStyle(
-                    color: Colors.orange,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<Voucher>(
-            initialValue: _selectedVoucher,
-            decoration: InputDecoration(
-              hintText: 'Select voucher',
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(
-                  color: Color(0xFFDCE5ED),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(
-                  color: Color(0xFF1687E8),
-                  width: 2,
-                ),
-              ),
             ),
-            items: _availableVouchers.map((voucher) {
-              final canAfford = _userPoints >= voucher.pointsRequired;
-              return DropdownMenuItem(
-                value: voucher,
-                enabled: canAfford,
-                child: Row(
-                  children: [
-                    Text(
-                      voucher.name,
-                      style: TextStyle(
-                        color: canAfford
-                            ? const Color(0xFF153B60)
-                            : const Color(0xFF718096),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '(${voucher.pointsRequired} pts)',
-                      style: TextStyle(
-                        color: canAfford ? Colors.green : const Color(0xFF718096),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedVoucher = value;
-              });
-              _updatePoints();
-            },
-          ),
-          if (_selectedVoucher != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _selectedVoucher!.description ?? '',
-                style: const TextStyle(
-                  color: Color(0xFF718096),
-                  fontSize: 12,
-                ),
-              ),
-            ),
+          ],
         ],
       ),
     );
@@ -1127,16 +1296,35 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
+    // ⭐ 验证 Pump Number 是否已选
+    if (_pumpNumber == null) {
+      _showError('Please select a pump number');
+      return;
+    }
+
     setState(() => _isProcessing = true);
 
     try {
+      final selectedVehicle = _selectedVehicle;
+
+      if (selectedVehicle == null) {
+        _showError('Please select a vehicle.');
+        return;
+      }
+
+      final serverVehicleId = await _vehicleService.prepareVehicleForPayment(
+        selectedVehicle.id,
+      );
+
+      if (!mounted) return;
+
       final paymentData = {
         'userId': user.id,
         'placeId': widget.placeId,
         'stationName': widget.stationName,
         'stationAddress': widget.stationAddress,
-        'vehicleId': _selectedVehicle?.id,
-        'pumpNumber': _pumpNumber!,
+        'vehicleId': serverVehicleId,
+        'pumpNumber': _pumpNumber!, // ⭐ 现在一定有值
         'fuelType': _selectedFuelType!.label,
         'quantityLiters': _liters,
         'pricePerLiter': _pricePerLiter,

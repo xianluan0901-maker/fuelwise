@@ -1,9 +1,8 @@
-// features/payment/screens/receipt_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../models/payment_model.dart';
+import '../../../shared/widgets/main_navigation.dart';
 
 class ReceiptPage extends StatelessWidget {
   final PaymentTransaction transaction;
@@ -28,17 +27,7 @@ class ReceiptPage extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.share_rounded,
-              color: Color(0xFF1687E8),
-            ),
-            onPressed: () {
-              // TODO: Share receipt
-            },
-          ),
-        ],
+        actions: const [], // ✅ Share 按钮已移除
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
@@ -57,32 +46,19 @@ class ReceiptPage extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  // UI Components
-  // ============================================================
-
   Widget _buildSuccessHeader() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            Color(0xFFE8F5E9),
-            Color(0xFFC8E6C9),
-          ],
+          colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.green[200]!,
-        ),
+        border: Border.all(color: Colors.green[200]!),
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.check_circle_rounded,
-            color: Colors.green,
-            size: 64,
-          ),
+          const Icon(Icons.check_circle_rounded, color: Colors.green, size: 64),
           const SizedBox(height: 8),
           const Text(
             'Payment Successful!',
@@ -95,32 +71,20 @@ class ReceiptPage extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Your transaction has been completed.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
           const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: const Color(0xFFFFF3E0),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFFFFE0B2),
-              ),
+              border: Border.all(color: const Color(0xFFFFE0B2)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.star_rounded,
-                  color: Colors.orange,
-                  size: 18,
-                ),
+                const Icon(Icons.star_rounded, color: Colors.orange, size: 18),
                 const SizedBox(width: 6),
                 Text(
                   '+${transaction.pointsEarned} Points Earned!',
@@ -144,9 +108,7 @@ class ReceiptPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFE4EBF2),
-        ),
+        border: Border.all(color: const Color(0xFFE4EBF2)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0C000000),
@@ -166,29 +128,16 @@ class ReceiptPage extends StatelessWidget {
               color: Color(0xFF153B60),
             ),
           ),
-          const Divider(
-            color: Color(0xFFE4EBF2),
-            height: 20,
-          ),
+          const Divider(color: Color(0xFFE4EBF2), height: 20),
           _buildDetailRow('⛽ Station', transaction.stationName),
           if (transaction.stationAddress != null)
             _buildDetailRow('📍 Address', transaction.stationAddress!),
           _buildDetailRow('🔢 Pump', '${transaction.pumpNumber}'),
           _buildDetailRow('⛽ Fuel', transaction.fuelType),
-          _buildDetailRow(
-            '📊 Quantity',
-            '${transaction.quantityLiters.toStringAsFixed(1)} L',
-          ),
-          _buildDetailRow(
-            '💰 Subtotal',
-            'RM${transaction.subtotal.toStringAsFixed(2)}',
-          ),
+          _buildDetailRow('📊 Quantity', '${transaction.quantityLiters.toStringAsFixed(1)} L'),
+          _buildDetailRow('💰 Subtotal', 'RM${transaction.subtotal.toStringAsFixed(2)}'),
           if (transaction.voucherDiscount > 0)
-            _buildDetailRow(
-              '🎫 Discount',
-              '-RM${transaction.voucherDiscount.toStringAsFixed(2)}',
-              valueColor: Colors.green,
-            ),
+            _buildDetailRow('🎫 Discount', '-RM${transaction.voucherDiscount.toStringAsFixed(2)}', valueColor: Colors.green),
           _buildDetailRow(
             '💳 Total Amount',
             'RM${transaction.totalAmount.toStringAsFixed(2)}',
@@ -196,31 +145,15 @@ class ReceiptPage extends StatelessWidget {
             valueColor: const Color(0xFF1687E8),
           ),
           _buildDetailRow('💳 Paid Via', transaction.paymentMethod),
-          _buildDetailRow(
-            '⭐ Points Earned',
-            '+${transaction.pointsEarned} pts',
-            valueColor: Colors.orange,
-          ),
-          _buildDetailRow(
-            '📅 Date & Time',
-            _formatDate(transaction.createdAt),
-          ),
-          _buildDetailRow(
-            '🆔 Transaction ID',
-            transaction.transactionId,
-            isBold: true,
-          ),
+          _buildDetailRow('⭐ Points Earned', '+${transaction.pointsEarned} pts', valueColor: Colors.orange),
+          _buildDetailRow('📅 Date & Time', _formatDate(transaction.createdAt)),
+          _buildDetailRow('🆔 Transaction ID', transaction.transactionId, isBold: true),
         ],
       ),
     );
   }
 
-  Widget _buildDetailRow(
-      String label,
-      String value, {
-        bool isBold = false,
-        Color? valueColor,
-      }) {
+  Widget _buildDetailRow(String label, String value, {bool isBold = false, Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -228,13 +161,7 @@ class ReceiptPage extends StatelessWidget {
         children: [
           SizedBox(
             width: 120,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 13,
-              ),
-            ),
+            child: Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
           ),
           Expanded(
             child: Text(
@@ -252,35 +179,23 @@ class ReceiptPage extends StatelessWidget {
   }
 
   Widget _buildQRCode() {
-    if (transaction.qrCodeData == null) {
-      return const SizedBox.shrink();
-    }
+    if (transaction.qrCodeData == null) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFE4EBF2),
-        ),
+        border: Border.all(color: const Color(0xFFE4EBF2)),
         boxShadow: const [
-          BoxShadow(
-            color: Color(0x0C000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
+          BoxShadow(color: Color(0x0C000000), blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
         children: [
           const Text(
             'Show this QR code at the counter',
-            style: TextStyle(
-              color: Color(0xFF153B60),
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Color(0xFF153B60), fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(height: 12),
           Container(
@@ -288,70 +203,43 @@ class ReceiptPage extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFFE4EBF2),
-              ),
+              border: Border.all(color: const Color(0xFFE4EBF2)),
             ),
             child: QrImageView(
               data: transaction.qrCodeData!,
               size: 180,
               backgroundColor: Colors.white,
-              eyeStyle: const QrEyeStyle(
-                color: Color(0xFF1687E8),
-                eyeShape: QrEyeShape.square,
-              ),
-              dataModuleStyle: const QrDataModuleStyle(
-                color: Color(0xFF1687E8),
-                dataModuleShape: QrDataModuleShape.square,
-              ),
+              eyeStyle: const QrEyeStyle(color: Color(0xFF1687E8), eyeShape: QrEyeShape.square),
+              dataModuleStyle: const QrDataModuleStyle(color: Color(0xFF1687E8), dataModuleShape: QrDataModuleShape.square),
             ),
           ),
           const SizedBox(height: 10),
           Text(
             'Transaction: ${transaction.transactionId}',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
         ],
       ),
     );
   }
 
+  // ============================================================
+  // ✅ 只有 Done 按钮，没有 Share
+  // ============================================================
+
   Widget _buildActionButtons(BuildContext context) {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton(
-            onPressed: () {
-              // TODO: Share receipt
-            },
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: const BorderSide(
-                color: Color(0xFF1687E8),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: const Text(
-              'Share',
-              style: TextStyle(
-                color: Color(0xFF1687E8),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
           child: ElevatedButton(
             onPressed: () {
-              Navigator.popUntil(
+              Navigator.pushReplacement(
                 context,
-                    (route) => route.isFirst,
+                MaterialPageRoute(
+                  builder: (context) => const MainNavigation(
+                    initialIndex: 2,
+                  ),
+                ),
               );
             },
             style: ElevatedButton.styleFrom(
@@ -364,9 +252,7 @@ class ReceiptPage extends StatelessWidget {
             ),
             child: const Text(
               'Done',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
         ),
@@ -374,12 +260,7 @@ class ReceiptPage extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  // Helper Methods
-  // ============================================================
-
   String _formatDate(DateTime date) {
-    final formatter = DateFormat('d MMM yyyy, h:mm a');
-    return formatter.format(date);
+    return DateFormat('d MMM yyyy, h:mm a').format(date);
   }
 }

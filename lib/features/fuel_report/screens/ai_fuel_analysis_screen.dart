@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class AIFuelAnalysisScreen extends StatelessWidget {
+import '../../payment/services/payment_service.dart';
+import '../../payment/models/payment_model.dart';
+
+class AIFuelAnalysisScreen extends StatefulWidget {
   final String category;
 
   const AIFuelAnalysisScreen({
@@ -9,287 +13,482 @@ class AIFuelAnalysisScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+  State<AIFuelAnalysisScreen> createState() =>
+      _AIFuelAnalysisScreenState();
+}
 
-      appBar: AppBar(
-        title: const Text(
-          'AI Analysis',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+class _AIFuelAnalysisScreenState
+    extends State<AIFuelAnalysisScreen> {
+  final PaymentService _paymentService = PaymentService();
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: _buildAnalysis(),
-      ),
-    );
+  bool _isLoading = true;
+  String? _analysis;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAIAnalysis();
   }
 
-  // ===============================================================
-  // SELECT ANALYSIS
-  // ===============================================================
+  // ===========================================================================
+  // LOAD AI ANALYSIS
+  // ===========================================================================
 
-  Widget _buildAnalysis() {
-    switch (category) {
+  Future<void> _loadAIAnalysis() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
 
-      case 'spending':
-        return _buildSpendingAnalysis();
+      if (user == null) {
+        throw Exception('Please login to use AI fuel analysis.');
+      }
 
-      case 'fuelType':
-        return _buildFuelTypeAnalysis();
+      // -----------------------------------------------------------------------
+      // Get data for the selected category
+      // -----------------------------------------------------------------------
 
-      case 'station':
-        return _buildStationAnalysis();
+      final data = await _getCategoryData(user.id);
 
-      case 'brand':
-        return _buildBrandAnalysis();
+      // -----------------------------------------------------------------------
+      // Send data to Supabase Edge Function
+      // -----------------------------------------------------------------------
 
-      case 'overall':
-        return _buildOverallAnalysis();
+      final response = await supabase.functions.invoke(
+        'fuel-ai-analysis',
+        body: {
+          'category': widget.category,
+          'data': data,
+        },
+      );
 
-      default:
-        return _buildSpendingAnalysis();
+      if (!mounted) return;
+
+      final responseData = response.data;
+
+      if (responseData == null) {
+        throw Exception('No response from AI service.');
+      }
+
+      if (responseData['success'] != true) {
+        throw Exception(
+          responseData['error']?.toString() ??
+              'Unable to generate AI analysis.',
+        );
+      }
+
+      setState(() {
+        _analysis = responseData['analysis']?.toString();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
     }
   }
 
-  // ===============================================================
-  // SPENDING ANALYSIS
-  // ===============================================================
+  // ===========================================================================
+  // GET CATEGORY DATA
+  // ===========================================================================
 
-  Widget _buildSpendingAnalysis() {
-    return _buildPage(
-      icon: Icons.attach_money,
-      title: 'Fuel Spending Analysis',
-      summary:
-      'You spent RM180 this month, which is RM32 less than last month.',
-      why:
-      'Your fuel spending decreased by approximately 15%. This is mainly associated with fewer refuelling trips. You made 8 trips this month compared with 10 trips last month.',
-      recommendation:
-      'Your fuel spending is currently trending downward. Continue tracking your monthly fuel expenses to maintain better control over your fuel budget.',
-    );
+  Future<Map<String, dynamic>> _getCategoryData(
+      String userId,
+      ) async {
+    switch (widget.category) {
+      case 'spending':
+        return await _getRealSpendingData(userId);
+
+      case 'fuelType':
+        return _getDemoFuelTypeData();
+
+      case 'station':
+        return _getDemoStationData();
+
+      case 'brand':
+        return _getDemoBrandData();
+
+      default:
+        return await _getRealSpendingData(userId);
+    }
   }
 
-  // ===============================================================
-  // FUEL TYPE ANALYSIS
-  // ===============================================================
+  // ===========================================================================
+  // REAL SPENDING DATA
+  // ===========================================================================
 
-  Widget _buildFuelTypeAnalysis() {
-    return _buildPage(
-      icon: Icons.local_fire_department,
-      title: 'Fuel Type Analysis',
-      summary:
-      'RON95 accounted for 75% of your fuel usage this month.',
-      why:
-      'RON95 was selected for most of your recorded refuelling transactions. It is currently your most frequently used fuel type.',
-      recommendation:
-      'Continue tracking your fuel type usage to understand how your fuel choices affect your monthly fuel spending.',
+  Future<Map<String, dynamic>> _getRealSpendingData(
+      String userId,
+      ) async {
+    // Get all real payment transactions from Supabase.
+    final transactions =
+    await _paymentService.getTransactionHistory(userId);
+
+    final now = DateTime.now();
+
+    // -------------------------------------------------------------------------
+    // Current month
+    // -------------------------------------------------------------------------
+
+    final startOfCurrentMonth = DateTime(
+      now.year,
+      now.month,
+      1,
     );
-  }
 
-  // ===============================================================
-  // STATION ANALYSIS
-  // ===============================================================
-
-  Widget _buildStationAnalysis() {
-    return _buildPage(
-      icon: Icons.local_gas_station,
-      title: 'Station Analysis',
-      summary:
-      'Shell Taman ABC was your most frequently used fuel station with 6 visits this month.',
-      why:
-      'You visited this station more frequently than the other stations recorded in your fuel history. Your repeated visits may indicate that this station is convenient for your regular travel routes.',
-      recommendation:
-      'You can continue using this station if it is convenient, while comparing other nearby stations when fuel prices or distance make another option more suitable.',
+    final startOfNextMonth = DateTime(
+      now.year,
+      now.month + 1,
+      1,
     );
-  }
 
-  // ===============================================================
-  // BRAND ANALYSIS
-  // ===============================================================
+    final currentMonthTransactions =
+    transactions.where((transaction) {
+      final date = transaction.createdAt;
 
-  Widget _buildBrandAnalysis() {
-    return _buildPage(
-      icon: Icons.business,
-      title: 'Petrol Brand Analysis',
-      summary:
-      'Shell accounted for 50% of your recorded refuelling activity.',
-      why:
-      'You selected Shell more frequently than the other petrol brands in your recorded fuel transactions this month.',
-      recommendation:
-      'Continue tracking your petrol brand usage so you can compare your preferences and spending patterns over time.',
-    );
-  }
+      return !date.isBefore(startOfCurrentMonth) &&
+          date.isBefore(startOfNextMonth);
+    }).toList();
 
-  // ===============================================================
-  // OVERALL ANALYSIS
-  // ===============================================================
+    // -------------------------------------------------------------------------
+    // Calculate current month values
+    // -------------------------------------------------------------------------
 
-  Widget _buildOverallAnalysis() {
-    return _buildPage(
-      icon: Icons.auto_awesome,
-      title: 'Overall Fuel Analysis',
-      summary:
-      'Your fuel spending improved this month, with RM32 less spent compared with last month.',
-      why:
-      'You made fewer refuelling trips and RON95 remained your main fuel type. Shell was also your most frequently used petrol brand and station.',
-      recommendation:
-      'Your current fuel behaviour shows a positive spending trend. Continue recording your refuelling activity so FuelWise MY can provide more personalised insights.',
-    );
-  }
+    double currentSpending = 0.0;
+    double currentLitres = 0.0;
 
-  // ===============================================================
-  // COMMON AI PAGE
-  // ===============================================================
+    for (final transaction in currentMonthTransactions) {
+      currentSpending += transaction.totalAmount;
+      currentLitres += transaction.quantityLiters;
+    }
 
-  Widget _buildPage({
-    required IconData icon,
-    required String title,
-    required String summary,
-    required String why,
-    required String recommendation,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    final currentRefuels =
+        currentMonthTransactions.length;
 
-        // =========================================================
-        // AI HEADER
-        // =========================================================
+    // -------------------------------------------------------------------------
+    // Previous month
+    //
+    // Temporary baseline from your Fuel Report.
+    // We will replace this with real previous-month data later.
+    // -------------------------------------------------------------------------
 
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF1687E8),
-                Color(0xFF52B6F4),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    const double previousSpending = 180.00;
+    const double previousLitres = 55.0;
+    const int previousRefuels = 6;
 
-              const Icon(
-                Icons.auto_awesome,
-                color: Colors.white,
-                size: 32,
-              ),
+    // -------------------------------------------------------------------------
+    // Calculate changes
+    // -------------------------------------------------------------------------
 
-              const SizedBox(height: 12),
+    final spendingDifference =
+        currentSpending - previousSpending;
 
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+    final spendingPercentageChange =
+    previousSpending == 0
+        ? 0.0
+        : (spendingDifference / previousSpending) * 100;
 
-              const SizedBox(height: 8),
+    final litresDifference =
+        currentLitres - previousLitres;
 
-              const Text(
-                'AI-powered insight based on your fuel activity.',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
+    final litresPercentageChange =
+    previousLitres == 0
+        ? 0.0
+        : (litresDifference / previousLitres) * 100;
+
+    final refuelsDifference =
+        currentRefuels - previousRefuels;
+
+    final refuelsPercentageChange =
+    previousRefuels == 0
+        ? 0.0
+        : (refuelsDifference / previousRefuels) * 100;
+
+    // -------------------------------------------------------------------------
+    // Suggested next-month target
+    //
+    // This is calculated by the application, NOT invented by Gemini.
+    // -------------------------------------------------------------------------
+
+    double targetMin;
+    double targetMax;
+
+    if (currentSpending > previousSpending) {
+      targetMin = previousSpending;
+      targetMax = previousSpending * 1.20;
+    } else if (currentSpending < previousSpending) {
+      targetMin = currentSpending;
+      targetMax = currentSpending * 1.10;
+    } else {
+      targetMin = currentSpending;
+      targetMax = currentSpending * 1.10;
+    }
+
+    return {
+      'current_month': {
+        'spending': double.parse(
+          currentSpending.toStringAsFixed(2),
         ),
-
-        const SizedBox(height: 20),
-
-        // =========================================================
-        // SUMMARY
-        // =========================================================
-
-        _buildSectionCard(
-          icon: icon,
-          title: 'What happened?',
-          text: summary,
+        'refuels': currentRefuels,
+        'litres': double.parse(
+          currentLitres.toStringAsFixed(2),
         ),
+      },
 
-        const SizedBox(height: 15),
+      'previous_month': {
+        'spending': previousSpending,
+        'refuels': previousRefuels,
+        'litres': previousLitres,
+      },
 
-        // =========================================================
-        // WHY
-        // =========================================================
-
-        _buildSectionCard(
-          icon: Icons.help_outline,
-          title: 'Why did this happen?',
-          text: why,
+      'comparison': {
+        'spending_difference': double.parse(
+          spendingDifference.toStringAsFixed(2),
         ),
-
-        const SizedBox(height: 15),
-
-        // =========================================================
-        // RECOMMENDATION
-        // =========================================================
-
-        _buildSectionCard(
-          icon: Icons.lightbulb_outline,
-          title: 'AI Recommendation',
-          text: recommendation,
+        'spending_change_percentage': double.parse(
+          spendingPercentageChange.toStringAsFixed(1),
         ),
+        'litres_difference': double.parse(
+          litresDifference.toStringAsFixed(2),
+        ),
+        'litres_change_percentage': double.parse(
+          litresPercentageChange.toStringAsFixed(1),
+        ),
+        'refuels_difference': refuelsDifference,
+        'refuels_change_percentage': double.parse(
+          refuelsPercentageChange.toStringAsFixed(1),
+        ),
+      },
 
-        const SizedBox(height: 20),
+      'recommendation': {
+        'target_min': double.parse(
+          targetMin.toStringAsFixed(0),
+        ),
+        'target_max': double.parse(
+          targetMax.toStringAsFixed(0),
+        ),
+        'basis': 'Based on the user\'s recorded spending pattern.',
+      },
+
+      'limitations': [
+        'Travel distance is not available.',
+        'Vehicle fuel efficiency cannot be determined.',
+        'Analysis is based on recorded fuel transactions.',
       ],
+    };
+  }
+
+  // ===========================================================================
+  // TEMPORARY DEMO DATA
+  //
+  // These will be replaced with REAL data later.
+  // ===========================================================================
+
+  Map<String, dynamic> _getDemoFuelTypeData() {
+    return {
+      'most_used_fuel_type': 'RON95',
+      'percentage_of_refuels': 75,
+      'total_refuels': 8,
+    };
+  }
+
+  Map<String, dynamic> _getDemoStationData() {
+    return {
+      'most_used_station': 'Shell Taman ABC',
+      'visits': 6,
+      'total_refuels': 8,
+    };
+  }
+
+  Map<String, dynamic> _getDemoBrandData() {
+    return {
+      'most_used_brand': 'Shell',
+      'brand_refuels': 6,
+      'total_refuels': 8,
+      'percentage': 75,
+    };
+  }
+
+  // ===========================================================================
+  // CATEGORY TITLE
+  // ===========================================================================
+
+  String _categoryTitle() {
+    switch (widget.category) {
+      case 'spending':
+        return 'Fuel Spending Analysis';
+
+      case 'fuelType':
+        return 'Fuel Type Analysis';
+
+      case 'station':
+        return 'Station Analysis';
+
+      case 'brand':
+        return 'Petrol Brand Analysis';
+
+      default:
+        return 'Fuel Analysis';
+    }
+  }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
+      appBar: AppBar(
+        title: Text(
+          _categoryTitle(),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: const Color(0xFF1687E8),
+        foregroundColor: Colors.white,
+      ),
+      body: _buildBody(),
     );
   }
 
-  // ===============================================================
-  // SECTION CARD
-  // ===============================================================
+  // ===========================================================================
+  // BODY
+  // ===========================================================================
 
-  Widget _buildSectionCard({
-    required IconData icon,
-    required String title,
-    required String text,
-  }) {
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              color: Color(0xFF1687E8),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'AI is analysing your fuel data...',
+              style: TextStyle(
+                color: Color(0xFF718096),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return _buildError();
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAIHeader(),
+
+          const SizedBox(height: 20),
+
+          _buildAnalysisCard(),
+
+          const SizedBox(height: 20),
+
+          _buildDisclaimer(),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // AI HEADER
+  // ===========================================================================
+
+  Widget _buildAIHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF123A63),
+            Color(0xFF1687E8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Row(
+        children: [
+          Icon(
+            Icons.auto_awesome,
+            color: Colors.white,
+            size: 30,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AI Fuel Analysis',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Personalised analysis based on your fuel data',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // ANALYSIS CARD
+  // ===========================================================================
+
+  Widget _buildAnalysisCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFE4EBF2),
+        ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
         children: [
-
-          Row(
+          const Row(
             children: [
-
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE9F4FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: const Color(0xFF1687E8),
-                ),
+              Icon(
+                Icons.lightbulb_outline,
+                color: Color(0xFF1687E8),
               ),
-
-              const SizedBox(width: 12),
-
+              SizedBox(width: 8),
               Text(
-                title,
-                style: const TextStyle(
+                'AI Insight',
+                style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF123A63),
@@ -298,17 +497,96 @@ class AIFuelAnalysisScreen extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 15),
+          const SizedBox(height: 18),
 
           Text(
-            text,
+            _analysis ?? 'No analysis available.',
             style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF61758A),
+              fontSize: 15,
+              color: Color(0xFF4A5568),
               height: 1.6,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // DISCLAIMER
+  // ===========================================================================
+
+  Widget _buildDisclaimer() {
+    return const Text(
+      'This AI analysis is generated from the fuel data recorded in FuelWise MY. '
+          'It is intended to help you understand your fuel spending and usage patterns. '
+          'Travel distance and vehicle fuel efficiency are not available in the current analysis.',
+      style: TextStyle(
+        fontSize: 12,
+        color: Color(0xFF718096),
+        height: 1.5,
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // ERROR
+  // ===========================================================================
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment:
+          MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 60,
+              color: Colors.redAccent,
+            ),
+
+            const SizedBox(height: 16),
+
+            const Text(
+              'Unable to generate AI analysis',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF123A63),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              _error ?? 'Unknown error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _error = null;
+                  _analysis = null;
+                });
+
+                _loadAIAnalysis();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
+            ),
+          ],
+        ),
       ),
     );
   }

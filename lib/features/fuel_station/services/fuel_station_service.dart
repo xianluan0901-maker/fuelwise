@@ -196,9 +196,8 @@ class FuelStationService {
   // ============================================================
 
   String getPhotoUrl(String photoName) {
-    return '$_placesBase/$photoName/media'
-        '?maxWidthPx=1200'
-        '&maxHeightPx=800'
+    return 'https://places.googleapis.com/v1/$photoName/media'
+        '?maxWidthPx=800'
         '&key=$apiKey';
   }
 }
