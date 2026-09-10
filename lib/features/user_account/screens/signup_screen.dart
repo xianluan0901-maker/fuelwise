@@ -42,11 +42,15 @@ class _SignupScreenState extends State<SignupScreen> {
   final phoneNumController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  final icController = TextEditingController();
   String? nameError;
   String? emailError;
   String? phoneError;
   String? passwordError;
   String? confirmPasswordError;
+  String? icError;
+  bool isMalaysian = true;
+
 
   @override
   void dispose() {
@@ -55,6 +59,7 @@ class _SignupScreenState extends State<SignupScreen> {
     phoneNumController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
+    icController.dispose();
 
     super.dispose();
   }
@@ -149,7 +154,76 @@ class _SignupScreenState extends State<SignupScreen> {
                   errorText: phoneError,
                 ),
               ),
+              // ============================================================
+// MALAYSIAN CITIZEN
+// ============================================================
+
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Are you a Malaysian citizen?",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+
+              RadioListTile<bool>(
+                title: const Text("Yes"),
+                value: true,
+                groupValue: isMalaysian,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (value) {
+                  setState(() {
+                    isMalaysian = value ?? true;
+                    icError = null;
+                  });
+                },
+              ),
+
+              RadioListTile<bool>(
+                title: const Text("No"),
+                value: false,
+                groupValue: isMalaysian,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (value) {
+                  setState(() {
+                    isMalaysian = value ?? true;
+
+                    if (!isMalaysian) {
+                      icController.clear();
+                      icError = null;
+                    }
+                  });
+                },
+              ),
+
+// ============================================================
+// IC NUMBER
+// ============================================================
+
+              if (isMalaysian)
+                TextField(
+                  controller: icController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'[0-9-]'),
+                    ),
+                    LengthLimitingTextInputFormatter(14),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: "Malaysian IC Number",
+                    hintText: "e.g. 900101-14-5678",
+                    border: const OutlineInputBorder(),
+                    errorText: icError,
+                  ),
+                ),
+
               const SizedBox(height: 15),
+
+
 
               TextField(
                 controller: passwordController,
@@ -244,6 +318,7 @@ class _SignupScreenState extends State<SignupScreen> {
     final name = nameController.text.trim();
     final email = emailController.text.trim();
     final phone = phoneNumController.text.trim();
+    final ic = icController.text.trim();
     final password = passwordController.text;
     final confirmPassword = confirmPasswordController.text;
     // Check empty fields
@@ -290,6 +365,24 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
+    // ================================================================
+// VALIDATE IC NUMBER
+// Format: 6 digits-2 digits-4 digits
+// ================================================================
+
+    if (isMalaysian) {
+      final icRegex = RegExp(r'^\d{6}-\d{2}-\d{4}$');
+
+      if (!icRegex.hasMatch(ic)) {
+        setState(() {
+          icError =
+          'Invalid IC number. Format: 6 digits-2 digits-4 digits.';
+        });
+
+        return;
+      }
+    }
+
     // Check password match
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -312,6 +405,8 @@ class _SignupScreenState extends State<SignupScreen> {
         data: {
           'full_name': name,
           'phone_number': phone,
+          'is_malaysian': isMalaysian,
+          'ic_number': isMalaysian ? ic : null,
         },
       );
 
