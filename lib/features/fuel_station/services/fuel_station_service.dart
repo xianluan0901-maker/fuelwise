@@ -196,6 +196,7 @@ class FuelStationService {
   // ============================================================
 
   String getPhotoUrl(String photoName) {
+    final apiKey = 'AIzaSyArrvj4hHs0Siwe9ZDSw6ewVy9pkxSU_l0';
     return 'https://places.googleapis.com/v1/$photoName/media'
         '?maxWidthPx=800'
         '&key=$apiKey';
