@@ -10,7 +10,12 @@ import '../services/fuel_station_service.dart';
 import 'station_detail_screen.dart';
 
 class StationListScreen extends StatefulWidget {
-  const StationListScreen({super.key});
+  final bool selectionMode;
+
+  const StationListScreen({
+    super.key,
+    this.selectionMode = false,
+  });
 
   @override
   State<StationListScreen> createState() =>
@@ -510,6 +515,11 @@ class _StationListScreenState extends State<StationListScreen> {
       return;
     }
 
+    if (widget.selectionMode) {
+      Navigator.pop<FuelStation>(context, selectedStation);
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -938,15 +948,11 @@ function initMap() {
 
         centerTitle: true,
 
-        title: const Text(
-          'Fuel Stations',
-
-          style: TextStyle(
-            color:
-            Color(0xFF153B60),
-
-            fontWeight:
-            FontWeight.bold,
+        title: Text(
+          widget.selectionMode ? 'Choose a station' : 'Fuel Stations',
+          style: const TextStyle(
+            color: Color(0xFF153B60),
+            fontWeight: FontWeight.bold,
           ),
         ),
 

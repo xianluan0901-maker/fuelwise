@@ -327,6 +327,38 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildRefuelPlannerCard() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _openFuelCalculator,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF1687E8),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 16,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        icon: const Icon(
+          Icons.calculate_rounded,
+          size: 24,
+        ),
+        label: const Text(
+          'Fuel Estimator',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent() {
     if (_isLoading) {
       return const Padding(
@@ -356,37 +388,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Fuel Price Today',
-                style: TextStyle(
-                  color: Color(0xFF153B60),
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Material(
-              color: const Color(0xFFE2F8F3),
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: _openFuelCalculator,
-                child: const Padding(
-                  padding: EdgeInsets.all(9),
-                  child: Icon(
-                    Icons.calculate_rounded,
-                    color: Color(0xFF10A88B),
-                    size: 22,
-                  ),
-                ),
-              ),
-            ),
-          ],
+        const Text(
+          'Latest Fuel Prices',
+          style: TextStyle(
+            color: Color(0xFF153B60),
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-
         const SizedBox(height: 17),
         GridView.count(
           crossAxisCount: gridColumns,
@@ -431,6 +440,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 14),
+        _buildRefuelPlannerCard(),
+    const SizedBox(height: 23),
         const SizedBox(height: 23),
         _buildTrendPreview(price),
         const SizedBox(height: 18),

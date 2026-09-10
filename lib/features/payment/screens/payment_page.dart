@@ -18,11 +18,20 @@ class PaymentPage extends StatefulWidget {
   final String stationName;
   final String? stationAddress;
 
+  final String? initialVehicleId;
+  final String? initialFuelType;
+  final double? initialLitres;
+  final double? estimatedPricePerLitre;
+
   const PaymentPage({
     super.key,
     required this.placeId,
     required this.stationName,
     this.stationAddress,
+    this.initialVehicleId,
+    this.initialFuelType,
+    this.initialLitres,
+    this.estimatedPricePerLitre,
   });
 
   @override
@@ -51,6 +60,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   bool _isLoading = true;
   bool _isProcessing = false;
+  bool _estimateApplied = false;
 
   final TextEditingController _litersController = TextEditingController();
 
@@ -90,9 +100,15 @@ class _PaymentPageState extends State<PaymentPage> {
   double get _maxLiters => _selectedVehicle?.tankCapacity ?? 50;
 
   bool get _canProceed =>
-      _selectedVehicle != null &&
+      !_isLoading &&
+          !_isProcessing &&
+          (widget.initialVehicleId == null || _estimateApplied) &&
+          _selectedVehicle != null &&
           _pumpNumber != null &&
           _selectedFuelType != null &&
+          _pricePerLiter.isFinite &&
+          _pricePerLiter > 0 &&
+          _liters.isFinite &&
           _liters > 0 &&
           _liters <= _maxLiters;
 
@@ -194,25 +210,8 @@ class _PaymentPageState extends State<PaymentPage> {
         await prefs.setString('cached_vehicles', jsonEncode(vehiclesJson));
       } catch (_) {}
 
-      // --- 5. 自动选择默认车辆 + 自动设置燃油类型 ---
-      if (_vehicles.isNotEmpty) {
-        final defaultVehicle = _vehicles.firstWhere(
-              (v) => v.isDefault,
-          orElse: () => _vehicles.first,
-        );
-
-        final fuelTypeMap = {
-          'RON95': FuelType.ron95,
-          'RON97': FuelType.ron97,
-          'Diesel': FuelType.diesel,
-        };
-
-        setState(() {
-          _selectedVehicle = defaultVehicle;
-          _selectedFuelType = fuelTypeMap[defaultVehicle.fuelType] ?? FuelType.ron95;
-          _litersController.clear();
-        });
-      }
+      if (!mounted) return;
+      _selectVehicleAndApplyEstimate();
 
       await _updatePoints();
 
@@ -221,6 +220,114 @@ class _PaymentPageState extends State<PaymentPage> {
       print('❌ Error loading data: $e');
       setState(() => _isLoading = false);
       _showError('Unable to load data. Please try again.');
+    }
+  }
+
+  void _selectVehicleAndApplyEstimate() {
+    final applyingEstimate =
+        widget.initialVehicleId != null && !_estimateApplied;
+    final requestedId = applyingEstimate
+        ? widget.initialVehicleId
+        : _selectedVehicle?.id;
+
+    Vehicle? chosen;
+    for (final vehicle in _vehicles) {
+      if (vehicle.id == requestedId) {
+        chosen = vehicle;
+        break;
+      }
+    }
+
+    if (applyingEstimate && chosen == null) {
+      throw Exception('The estimated vehicle is no longer available.');
+    }
+
+    if (chosen == null && _vehicles.isNotEmpty) {
+      chosen = _vehicles.firstWhere(
+            (vehicle) => vehicle.isDefault,
+        orElse: () => _vehicles.first,
+      );
+    }
+
+    if (chosen == null) {
+      _selectedVehicle = null;
+      _selectedFuelType = null;
+      _liters = 0;
+      _litersController.clear();
+      return;
+    }
+
+    final vehicleChanged = _selectedVehicle?.id != chosen.id;
+    if (applyingEstimate) {
+      final litres = widget.initialLitres;
+      final fuelName = widget.initialFuelType;
+      final capacity = chosen.tankCapacity;
+
+      FuelType? fuel;
+      for (final item in FuelType.values) {
+        if (item.label == fuelName) {
+          fuel = item;
+          break;
+        }
+      }
+
+      if (litres == null ||
+          !litres.isFinite ||
+          litres <= 0 ||
+          fuel == null) {
+        throw Exception('The refill estimate is invalid.');
+      }
+
+      if (capacity == null ||
+          !capacity.isFinite ||
+          capacity <= 0 ||
+          litres > capacity) {
+        throw Exception(
+          'Check the saved vehicle tank capacity before using this estimate.',
+        );
+      }
+
+      _selectedVehicle = chosen;
+      _selectedFuelType = fuel;
+      _liters = litres;
+      _litersController.text = litres.toStringAsFixed(2);
+      _pumpNumber = null;
+      _estimateApplied = true;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final estimatedPrice = widget.estimatedPricePerLitre;
+        final actualPrice = _pricePerLiter;
+        final validPrice = actualPrice.isFinite && actualPrice > 0;
+        final changed = estimatedPrice != null &&
+            (actualPrice - estimatedPrice).abs() > 0.000001;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 8),
+            content: Text(
+              !validPrice
+                  ? 'Refill amount copied, but a valid payment price '
+                  'is unavailable. Refresh before continuing.'
+                  : changed
+                  ? 'Refill amount copied. Payment uses a different '
+                  'price from the estimate. Review the total '
+                  'and select a pump before continuing.'
+                  : 'Refill amount copied. Review the total '
+                  'and select a pump before continuing.',
+            ),
+          ),
+        );
+      });
+      return;
+    }
+
+    // Preserve user-entered details when refreshing the same vehicle.
+    _selectedVehicle = chosen;
+    if (vehicleChanged) {
+      _selectedFuelType = FuelType.fromString(chosen.fuelType);
+      _liters = 0;
+      _litersController.clear();
     }
   }
 
@@ -1285,6 +1392,8 @@ class _PaymentPageState extends State<PaymentPage> {
   // ============================================================
 
   void _handleProceed() async {
+    if (!_canProceed) return;
+
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
 
