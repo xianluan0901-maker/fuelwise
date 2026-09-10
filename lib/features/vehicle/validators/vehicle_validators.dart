@@ -54,6 +54,33 @@ class VehicleValidators {
     return null;
   }
 
+  static const int maxBrandLength = 30;
+  static const int maxModelLength = 50;
+
+  static String? vehicleBrand(String? value) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) return null;
+
+    if (text.characters.length > maxBrandLength) {
+      return 'Use no more than $maxBrandLength characters.';
+    }
+
+    return null;
+  }
+
+  static String? vehicleModel(String? value) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) return null;
+
+    if (text.characters.length > maxModelLength) {
+      return 'Use no more than $maxModelLength characters.';
+    }
+
+    return null;
+  }
+
   static String? manufactureYear(String? value) {
     final text = value?.trim() ?? '';
 
