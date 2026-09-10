@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../shared/widgets/bottom_nav_bar.dart';
+import '../../../shared/widgets/main_navigation.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import 'package:flutter/services.dart';
@@ -237,7 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => const BottomNavBar(),
+            builder: (context) => const MainNavigation(),
           ),
               (route) => false,
         );

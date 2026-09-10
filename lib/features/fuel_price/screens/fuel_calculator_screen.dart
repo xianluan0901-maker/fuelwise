@@ -28,6 +28,8 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
   static const _background = Color(0xFFF5F7FA);
   static const _border = Color(0xFFE2E8F0);
 
+  static const double _minimumRefillLitres = 1.0;
+
   final _formKey = GlobalKey<FormState>();
   final _vehicleService = VehicleService();
   final _priceService = FuelPriceService();
@@ -48,14 +50,11 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
   bool _openingPayment = false;
   bool _editingVehicle = false;
   bool _eastMalaysia = false;
-  bool _useBudi95 = false;
   bool _returnTrip = false;
   bool _addAllowance = false;
 
   double _tankPercent = 25;
   String? _error;
-
-  static const double _minimumRefillLitres = 1.0;
 
   @override
   void initState() {
@@ -86,15 +85,11 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
 
   bool get _validCapacity {
     final capacity = _selectedVehicle?.tankCapacity;
+
     return capacity != null &&
         capacity.isFinite &&
         capacity >= 5 &&
         capacity <= 200;
-  }
-
-  bool get _budiAvailable {
-    final price = _prices?.ron95Budi;
-    return price != null && price.isFinite && price > 0;
   }
 
   double get _pricePerLitre {
@@ -103,9 +98,7 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
 
     switch (_fuelType) {
       case 'RON95':
-        return _useBudi95
-            ? (prices.ron95Budi ?? 0)
-            : prices.ron95;
+        return prices.ron95;
       case 'RON97':
         return prices.ron97;
       case 'Diesel':
@@ -116,11 +109,12 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
   }
 
   bool get _alternativePrice =>
-      (_fuelType == 'RON95' && _useBudi95) ||
-          (_fuelType == 'Diesel' && _eastMalaysia);
+      _fuelType == 'Diesel' && _eastMalaysia;
 
   String _money(double value) => 'RM ${_decimal.format(value)}';
+
   String _litres(double value) => '${_decimal.format(value)} L';
+
   String _distance(double value) =>
       '${_distanceFormat.format(value)} km';
 
@@ -172,7 +166,6 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
       setState(() {
         _vehicles = vehicles;
         _prices = prices;
-        _useBudi95 = false;
 
         if (selected != null) {
           _applyVehicle(selected);
@@ -198,7 +191,6 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
     _selectedVehicleId = vehicle.id;
     _efficiencyController.text =
         vehicle.fuelEfficiency?.toString() ?? '';
-    _useBudi95 = false;
     _result = null;
   }
 
@@ -296,17 +288,17 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
 
     final rawRefill = math.min(additionalFuel, freeSpace);
 
-    // Round once. Use this same quantity for display, cost and payment.
+    // Use the same rounded quantity for display, cost and payment.
     final roundedRefill =
     double.parse(rawRefill.toStringAsFixed(2));
 
-    // Never exceed the estimated free space or saved tank capacity.
+    // Do not exceed the estimated free space or saved capacity.
     final maximumRefill =
         (math.min(freeSpace, capacity) * 100).floor() / 100.0;
 
     final refillNow = math.min(roundedRefill, maximumRefill);
 
-    // Do not mistake a rounding difference for a required fuel stop.
+    // A rounding difference does not mean a fuel stop is required.
     final refillLater = math.max(
       0.0,
       additionalFuel - freeSpace,
@@ -457,9 +449,8 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
             _buildTripCard(),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: _openingPayment ||
-                  !_validCapacity ||
-                  !_supportedFuel
+              onPressed:
+              _openingPayment || !_validCapacity || !_supportedFuel
                   ? null
                   : _calculate,
               style: FilledButton.styleFrom(
@@ -572,7 +563,10 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
           const SizedBox(height: 8),
           const Text(
             'Update fuel type and tank capacity in vehicle details.',
-            style: TextStyle(color: Colors.redAccent, fontSize: 12),
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontSize: 12,
+            ),
           ),
         ],
         const SizedBox(height: 16),
@@ -586,7 +580,7 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
         const SizedBox(height: 6),
         const Text(
           'For heavy traffic or uphill driving, use a lower km/L '
-              'based on your vehicle’s actual consumption. ',
+              'based on your vehicle’s actual consumption.',
           style: TextStyle(color: _muted, fontSize: 12),
         ),
         const Divider(height: 28),
@@ -595,8 +589,8 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
           children: [
             Expanded(
               child: Text(
-                _useBudi95 && _fuelType == 'RON95'
-                    ? 'BUDI95 price'
+                _fuelType == 'RON95'
+                    ? 'RON95 (unsubsidised)'
                     : '$_fuelType price',
                 style: const TextStyle(color: _muted),
               ),
@@ -612,7 +606,6 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
           ],
         ),
         const SizedBox(height: 4),
-
         if (_fuelType == 'Diesel') ...[
           const SizedBox(height: 10),
           DropdownButtonFormField<bool>(
@@ -630,6 +623,7 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
             ],
             onChanged: (value) {
               if (value == null) return;
+
               setState(() {
                 _eastMalaysia = value;
                 _result = null;
@@ -637,25 +631,6 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
             },
           ),
         ],
-        if (_fuelType == 'RON95' && _budiAvailable)
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text(
-              'Use BUDI95',
-              style: TextStyle(fontSize: 14),
-            ),
-            subtitle: const Text(
-              'Eligible purchases only',
-              style: TextStyle(fontSize: 11),
-            ),
-            value: _useBudi95,
-            onChanged: (value) {
-              setState(() {
-                _useBudi95 = value;
-                _result = null;
-              });
-            },
-          ),
         if (_alternativePrice) ...[
           const SizedBox(height: 6),
           const Text(
@@ -752,9 +727,18 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Empty', style: TextStyle(color: _muted, fontSize: 11)),
-            Text('Half', style: TextStyle(color: _muted, fontSize: 11)),
-            Text('Full', style: TextStyle(color: _muted, fontSize: 11)),
+            Text(
+              'Empty',
+              style: TextStyle(color: _muted, fontSize: 11),
+            ),
+            Text(
+              'Half',
+              style: TextStyle(color: _muted, fontSize: 11),
+            ),
+            Text(
+              'Full',
+              style: TextStyle(color: _muted, fontSize: 11),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -882,7 +866,8 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
           const SizedBox(height: 8),
           Text(
             result.refillLitres < _minimumRefillLitres
-                ? 'Minimum refill to continue: ${_litres(_minimumRefillLitres)}.'
+                ? 'Minimum refill to continue: '
+                '${_litres(_minimumRefillLitres)}.'
                 : 'Choose a station, then review payment.',
             style: const TextStyle(
               color: _muted,
@@ -962,7 +947,10 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
       inputFormatters: [
         TextInputFormatter.withFunction((oldValue, newValue) {
           if (!newValue.composing.isCollapsed) return newValue;
-          return pattern.hasMatch(newValue.text) ? newValue : oldValue;
+
+          return pattern.hasMatch(newValue.text)
+              ? newValue
+              : oldValue;
         }),
       ],
       decoration: _decoration(label, unit: unit),

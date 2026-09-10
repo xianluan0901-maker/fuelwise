@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:fuelwisee/shared/widgets/bottom_nav_bar.dart';
+import 'package:fuelwisee/shared/widgets/main_navigation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'features/user_account/screens/login_screen.dart';
@@ -192,7 +192,7 @@ class _AuthGateState extends State<AuthGate> {
 
         if (session != null) {
           debugPrint('SHOWING BOTTOM NAV');
-          return const BottomNavBar();
+          return const MainNavigation();
         }
 
         // ---------------------------------------------------------
