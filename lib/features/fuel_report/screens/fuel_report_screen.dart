@@ -32,32 +32,6 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
   String? _error;
 
   // ===========================================================================
-  // DUMMY HISTORICAL DATA
-  // ===========================================================================
-  //
-  // July and August use dummy data.
-  // September/current month uses real Supabase transaction data.
-  //
-  // ===========================================================================
-
-  final Map<String, Map<String, dynamic>> _dummyMonthlyData = {
-    'July 2026': {
-      'spending': 165.50,
-      'litres': 51.5,
-      'refuels': 5,
-      'brand': 'Shell',
-      'brandPercentage': 60.0,
-    },
-    'August 2026': {
-      'spending': 180.00,
-      'litres': 55.0,
-      'refuels': 6,
-      'brand': 'Petronas',
-      'brandPercentage': 66.7,
-    },
-  };
-
-  // ===========================================================================
   // LIFECYCLE
   // ===========================================================================
 
@@ -177,6 +151,31 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
   }
 
   // ===========================================================================
+  // SELECTED MONTH TRANSACTIONS - REAL DATA
+  // ===========================================================================
+
+  List<PaymentTransaction> get _selectedMonthTransactions {
+    final startOfMonth = DateTime(
+      _selectedYear,
+      _selectedMonth,
+      1,
+    );
+
+    final startOfNextMonth = DateTime(
+      _selectedYear,
+      _selectedMonth + 1,
+      1,
+    );
+
+    return _transactions.where((transaction) {
+      final date = transaction.createdAt;
+
+      return !date.isBefore(startOfMonth) &&
+          date.isBefore(startOfNextMonth);
+    }).toList();
+  }
+
+  // ===========================================================================
   // CURRENT MONTH TRANSACTIONS - REAL DATA
   // ===========================================================================
 
@@ -190,77 +189,33 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
   }
 
   // ===========================================================================
-  // CURRENT MONTH CALCULATIONS - REAL DATA
+  // SELECTED MONTH SPENDING - REAL DATA
   // ===========================================================================
 
-  double get _currentMonthSpending {
-    return _currentMonthTransactions.fold(
+  double get _selectedSpending {
+    return _selectedMonthTransactions.fold(
       0.0,
           (sum, transaction) => sum + transaction.totalAmount,
     );
   }
 
-  double get _currentMonthLitres {
-    return _currentMonthTransactions.fold(
+  // ===========================================================================
+  // SELECTED MONTH LITRES - REAL DATA
+  // ===========================================================================
+
+  double get _selectedLitres {
+    return _selectedMonthTransactions.fold(
       0.0,
           (sum, transaction) => sum + transaction.quantityLiters,
     );
   }
 
-  int get _currentMonthRefuels {
-    return _currentMonthTransactions.length;
-  }
-
   // ===========================================================================
-  // SELECTED MONTH DUMMY DATA
-  // ===========================================================================
-
-  Map<String, dynamic>? get _selectedDummyData {
-    final key = '$_selectedMonthName $_selectedYear';
-
-    return _dummyMonthlyData[key];
-  }
-
-  // ===========================================================================
-  // SELECTED MONTH SPENDING
-  // ===========================================================================
-
-  double get _selectedSpending {
-    // Current month = real Supabase data
-    if (_isSelectedCurrentMonth) {
-      return _currentMonthSpending;
-    }
-
-    // Historical months = dummy data
-    return _selectedDummyData?['spending'] ?? 0.0;
-  }
-
-  // ===========================================================================
-  // SELECTED MONTH LITRES
-  // ===========================================================================
-
-  double get _selectedLitres {
-    // Current month = real Supabase data
-    if (_isSelectedCurrentMonth) {
-      return _currentMonthLitres;
-    }
-
-    // Historical months = dummy data
-    return _selectedDummyData?['litres'] ?? 0.0;
-  }
-
-  // ===========================================================================
-  // SELECTED MONTH REFUELS
+  // SELECTED MONTH REFUELS - REAL DATA
   // ===========================================================================
 
   int get _selectedRefuels {
-    // Current month = real Supabase data
-    if (_isSelectedCurrentMonth) {
-      return _currentMonthRefuels;
-    }
-
-    // Historical months = dummy data
-    return _selectedDummyData?['refuels'] ?? 0;
+    return _selectedMonthTransactions.length;
   }
 
   // ===========================================================================
@@ -276,78 +231,7 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
   }
 
   // ===========================================================================
-  // SELECTED MONTH PETROL BRAND
-  // ===========================================================================
-
-  String get _selectedBrand {
-    // Current month = calculate from real transactions
-    if (_isSelectedCurrentMonth) {
-      return _mostUsedBrand;
-    }
-
-    // Historical months = dummy brand
-    return _selectedDummyData?['brand'] ?? 'Not available';
-  }
-
-  // ===========================================================================
-  // SELECTED MONTH PETROL BRAND PERCENTAGE
-  // ===========================================================================
-
-  double get _selectedBrandPercentage {
-    // Current month = calculate from real transactions
-    if (_isSelectedCurrentMonth) {
-      return _mostUsedBrandPercentage;
-    }
-
-    // Historical months = dummy percentage
-    final percentage =
-    _selectedDummyData?['brandPercentage'];
-
-    if (percentage == null) {
-      return 0;
-    }
-
-    return (percentage as num).toDouble();
-  }
-
-  // ===========================================================================
-  // PREVIOUS MONTH DATA
-  // ===========================================================================
-  //
-  // September 2026 compares against August 2026.
-  //
-  // ===========================================================================
-
-  double get _previousMonthSpending {
-    return 180.00;
-  }
-
-  double get _previousMonthLitres {
-    return 55.0;
-  }
-
-  int get _previousMonthRefuels {
-    return 6;
-  }
-
-  // ===========================================================================
-  // CURRENT MONTH COMPARISON
-  // ===========================================================================
-
-  double get _spendingDifference {
-    return _currentMonthSpending - _previousMonthSpending;
-  }
-
-  double get _spendingPercentageChange {
-    if (_previousMonthSpending == 0) {
-      return 0;
-    }
-
-    return (_spendingDifference / _previousMonthSpending) * 100;
-  }
-
-  // ===========================================================================
-  // PETROL BRAND ANALYSIS - REAL CURRENT MONTH
+  // PETROL BRAND DETECTION
   // ===========================================================================
 
   String _detectBrandFromStationName(String stationName) {
@@ -376,14 +260,14 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
     return 'Unknown';
   }
 
-  String get _mostUsedBrand {
-    if (_currentMonthTransactions.isEmpty) {
-      return 'No data';
-    }
+  // ===========================================================================
+  // SELECTED MONTH BRAND COUNTS - REAL DATA
+  // ===========================================================================
 
+  Map<String, int> get _selectedMonthBrandCounts {
     final Map<String, int> brandCounts = {};
 
-    for (final transaction in _currentMonthTransactions) {
+    for (final transaction in _selectedMonthTransactions) {
       final brand = _detectBrandFromStationName(
         transaction.stationName,
       );
@@ -393,6 +277,16 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
             (brandCounts[brand] ?? 0) + 1;
       }
     }
+
+    return brandCounts;
+  }
+
+  // ===========================================================================
+  // SELECTED MONTH MOST USED BRAND - REAL DATA
+  // ===========================================================================
+
+  String get _selectedBrand {
+    final brandCounts = _selectedMonthBrandCounts;
 
     if (brandCounts.isEmpty) {
       return 'Not available';
@@ -406,11 +300,167 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
     return sorted.first.key;
   }
 
-  int get _mostUsedBrandCount {
-    if (_currentMonthTransactions.isEmpty) {
+  // ===========================================================================
+  // SELECTED MONTH BRAND PERCENTAGE - REAL DATA
+  // ===========================================================================
+
+  double get _selectedBrandPercentage {
+    final brandCounts = _selectedMonthBrandCounts;
+
+    if (brandCounts.isEmpty || _selectedRefuels == 0) {
+      return 0.0;
+    }
+
+    final mostUsedCount = brandCounts.values.reduce(
+          (a, b) => a > b ? a : b,
+    );
+
+    return (mostUsedCount / _selectedRefuels) * 100;
+  }
+
+  // ===========================================================================
+  // SELECTED MONTH BRAND BREAKDOWN - REAL DATA
+  // ===========================================================================
+
+  String get _selectedMonthBrandBreakdown {
+    final brandCounts = _selectedMonthBrandCounts;
+
+    if (brandCounts.isEmpty) {
+      return 'No brand data available';
+    }
+
+    final totalRefuels = _selectedRefuels;
+
+    final sortedBrands = brandCounts.entries.toList()
+      ..sort(
+            (a, b) => b.value.compareTo(a.value),
+      );
+
+    return sortedBrands.map((entry) {
+      final percentage = totalRefuels == 0
+          ? 0.0
+          : (entry.value / totalRefuels) * 100;
+
+      return '${entry.key} ${percentage.toStringAsFixed(0)}%';
+    }).join('\n');
+  }
+
+  // ===========================================================================
+  // PREVIOUS MONTH TRANSACTIONS - REAL DATA
+  // ===========================================================================
+
+  DateTime get _previousMonthDate {
+    return DateTime(
+      _selectedYear,
+      _selectedMonth - 1,
+      1,
+    );
+  }
+
+  List<PaymentTransaction> get _previousMonthTransactions {
+    final previousMonth = _previousMonthDate;
+
+    final startOfPreviousMonth = DateTime(
+      previousMonth.year,
+      previousMonth.month,
+      1,
+    );
+
+    final startOfSelectedMonth = DateTime(
+      _selectedYear,
+      _selectedMonth,
+      1,
+    );
+
+    return _transactions.where((transaction) {
+      final date = transaction.createdAt;
+
+      return !date.isBefore(startOfPreviousMonth) &&
+          date.isBefore(startOfSelectedMonth);
+    }).toList();
+  }
+
+  // ===========================================================================
+  // PREVIOUS MONTH SPENDING - REAL DATA
+  // ===========================================================================
+
+  double get _previousMonthSpending {
+    return _previousMonthTransactions.fold(
+      0.0,
+          (sum, transaction) => sum + transaction.totalAmount,
+    );
+  }
+
+  // ===========================================================================
+  // PREVIOUS MONTH LITRES - REAL DATA
+  // ===========================================================================
+
+  double get _previousMonthLitres {
+    return _previousMonthTransactions.fold(
+      0.0,
+          (sum, transaction) => sum + transaction.quantityLiters,
+    );
+  }
+
+  // ===========================================================================
+  // PREVIOUS MONTH REFUELS - REAL DATA
+  // ===========================================================================
+
+  int get _previousMonthRefuels {
+    return _previousMonthTransactions.length;
+  }
+
+  // ===========================================================================
+  // CURRENT MONTH SPENDING
+  // ===========================================================================
+
+  double get _currentMonthSpending {
+    return _currentMonthTransactions.fold(
+      0.0,
+          (sum, transaction) => sum + transaction.totalAmount,
+    );
+  }
+
+  // ===========================================================================
+  // CURRENT MONTH LITRES
+  // ===========================================================================
+
+  double get _currentMonthLitres {
+    return _currentMonthTransactions.fold(
+      0.0,
+          (sum, transaction) => sum + transaction.quantityLiters,
+    );
+  }
+
+  // ===========================================================================
+  // CURRENT MONTH REFUELS
+  // ===========================================================================
+
+  int get _currentMonthRefuels {
+    return _currentMonthTransactions.length;
+  }
+
+  // ===========================================================================
+  // SPENDING COMPARISON
+  // ===========================================================================
+
+  double get _spendingDifference {
+    return _currentMonthSpending - _previousMonthSpending;
+  }
+
+  double get _spendingPercentageChange {
+    if (_previousMonthSpending == 0) {
       return 0;
     }
 
+    return (_spendingDifference / _previousMonthSpending) * 100;
+  }
+
+  // ===========================================================================
+  // CURRENT MONTH BRAND COUNTS
+  // ===========================================================================
+
+  Map<String, int> get _currentMonthBrandCounts {
     final Map<String, int> brandCounts = {};
 
     for (final transaction in _currentMonthTransactions) {
@@ -424,48 +474,12 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
       }
     }
 
-    if (brandCounts.isEmpty) {
-      return 0;
-    }
-
-    return brandCounts.values.reduce(
-          (a, b) => a > b ? a : b,
-    );
-  }
-
-  double get _mostUsedBrandPercentage {
-    if (_currentMonthRefuels == 0) {
-      return 0;
-    }
-
-    if (_mostUsedBrand == 'Not available' ||
-        _mostUsedBrand == 'No data') {
-      return 0;
-    }
-
-    return (_mostUsedBrandCount / _currentMonthRefuels) *
-        100;
-  }
-
-  // ===========================================================================
-  // AI ANALYSIS
-  // ===========================================================================
-
-  Map<String, int> get _currentMonthBrandCounts {
-    final Map<String, int> brandCounts = {};
-
-    for (final transaction in _currentMonthTransactions) {
-      final brand = _detectBrandFromStationName(
-        transaction.stationName,
-      );
-
-      if (brand != 'Unknown') {
-        brandCounts[brand] = (brandCounts[brand] ?? 0) + 1;
-      }
-    }
-
     return brandCounts;
   }
+
+  // ===========================================================================
+  // CURRENT MONTH BRAND BREAKDOWN
+  // ===========================================================================
 
   String get _currentMonthBrandBreakdown {
     final brandCounts = _currentMonthBrandCounts;
@@ -477,7 +491,9 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
     final total = _currentMonthRefuels;
 
     final sortedBrands = brandCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+      ..sort(
+            (a, b) => b.value.compareTo(a.value),
+      );
 
     return sortedBrands.map((entry) {
       final percentage = total == 0
@@ -487,12 +503,19 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
       return '${entry.key} ${percentage.toStringAsFixed(0)}%';
     }).join('\n');
   }
+
+  // ===========================================================================
+  // AI ANALYSIS
+  // ===========================================================================
+
   void _openAIAnalysis(String category) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => AIFuelAnalysisScreen(
           category: category,
+          selectedYear: _selectedYear,
+          selectedMonth: _selectedMonth,
         ),
       ),
     );
@@ -618,15 +641,10 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
         _buildReportCard(
           icon: Icons.business,
           title: 'Petrol Brand',
-          value: _isSelectedCurrentMonth
-              ? _currentMonthBrandBreakdown
-              : _selectedBrand,
-          subtitle: _isSelectedCurrentMonth
-              ? '$_selectedRefuels refuelling transactions'
-              : _selectedBrand == 'No data' ||
-              _selectedBrand == 'Not available'
-              ? 'Brand information is not available'
-              : '${_selectedBrandPercentage.toStringAsFixed(0)}% of your refuelling transactions',
+          value: _selectedMonthBrandBreakdown,
+          subtitle: _selectedRefuels == 0
+              ? 'No refuelling transactions recorded'
+              : 'Based on $_selectedRefuels actual refuelling transactions',
           category: 'brand',
         ),
 
@@ -851,6 +869,10 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
   // ===========================================================================
 
   String _buildSpendingSubtitle() {
+    if (_previousMonthSpending == 0) {
+      return 'No spending data recorded for last month';
+    }
+
     final difference = _spendingDifference.abs();
     final percentage = _spendingPercentageChange.abs();
 
@@ -927,7 +949,7 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
 
           Text(
             value,
-            maxLines: 2,
+            maxLines: 5,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 21,
@@ -1043,14 +1065,7 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
           ),
 
           // -------------------------------------------------------------------
-          // Historical month information
-          // -------------------------------------------------------------------
-          //
-          // For July and August, these values belong to the
-          // selected month itself.
-          //
-          // For September, these are the previous month comparison.
-          //
+          // Previous month comparison
           // -------------------------------------------------------------------
 
           if (_isSelectedCurrentMonth) ...[
@@ -1089,7 +1104,7 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
               '${_spendingPercentageChange >= 0 ? '+' : ''}'
                   '${_spendingPercentageChange.toStringAsFixed(1)}%',
             ),
-          ] else if (_selectedDummyData != null) ...[
+          ] else ...[
             const Divider(height: 24),
 
             _buildStatisticRow(

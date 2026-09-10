@@ -7,9 +7,15 @@ import '../../payment/models/payment_model.dart';
 class AIFuelAnalysisScreen extends StatefulWidget {
   final String category;
 
+  // The month selected in Fuel Report
+  final int selectedYear;
+  final int selectedMonth;
+
   const AIFuelAnalysisScreen({
     super.key,
     required this.category,
+    required this.selectedYear,
+    required this.selectedMonth,
   });
 
   @override
@@ -19,11 +25,15 @@ class AIFuelAnalysisScreen extends StatefulWidget {
 
 class _AIFuelAnalysisScreenState
     extends State<AIFuelAnalysisScreen> {
-  final PaymentService _paymentService = PaymentService();
+  final PaymentService _paymentService =
+  PaymentService();
 
   bool _isLoading = true;
   String? _analysis;
   String? _error;
+
+  // Real data used for displaying the UI
+  Map<String, dynamic>? _analysisData;
 
   @override
   void initState() {
@@ -37,37 +47,71 @@ class _AIFuelAnalysisScreenState
 
   Future<void> _loadAIAnalysis() async {
     try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
+      final supabase =
+          Supabase.instance.client;
+
+      final user =
+          supabase.auth.currentUser;
 
       if (user == null) {
-        throw Exception('Please login to use AI fuel analysis.');
+        throw Exception(
+          'Please login to use AI fuel analysis.',
+        );
       }
 
-      // -----------------------------------------------------------------------
-      // Get data for the selected category
-      // -----------------------------------------------------------------------
+      final data =
+      await _getCategoryData(user.id);
 
-      final data = await _getCategoryData(user.id);
+      debugPrint(
+        '========================================',
+      );
 
-      // -----------------------------------------------------------------------
-      // Send data to Supabase Edge Function
-      // -----------------------------------------------------------------------
+      debugPrint(
+        'AI CATEGORY: ${widget.category}',
+      );
 
-      final response = await supabase.functions.invoke(
+      debugPrint(
+        'AI SELECTED MONTH: '
+            '${_monthName(widget.selectedMonth)} '
+            '${widget.selectedYear}',
+      );
+
+      debugPrint(
+        'AI DATA: $data',
+      );
+
+      debugPrint(
+        '========================================',
+      );
+
+      final response =
+      await supabase.functions.invoke(
         'fuel-ai-analysis',
         body: {
           'category': widget.category,
+
+          // VERY IMPORTANT:
+          // Tell the Edge Function exactly which
+          // month the user selected.
+          'selected_year':
+          widget.selectedYear,
+
+          'selected_month':
+          widget.selectedMonth,
+
           'data': data,
         },
       );
 
       if (!mounted) return;
 
-      final responseData = response.data;
+      final responseData =
+          response.data;
 
       if (responseData == null) {
-        throw Exception('No response from AI service.');
+        throw Exception(
+          'No response from AI service.',
+        );
       }
 
       if (responseData['success'] != true) {
@@ -78,7 +122,12 @@ class _AIFuelAnalysisScreenState
       }
 
       setState(() {
-        _analysis = responseData['analysis']?.toString();
+        _analysis =
+            responseData['analysis']
+                ?.toString();
+
+        _analysisData = data;
+
         _isLoading = false;
       });
     } catch (e) {
@@ -94,248 +143,618 @@ class _AIFuelAnalysisScreenState
   // ===========================================================================
   // GET CATEGORY DATA
   // ===========================================================================
-  Future<Map<String, dynamic>> _getCategoryData(
+
+  Future<Map<String, dynamic>>
+  _getCategoryData(
       String userId,
       ) async {
     switch (widget.category) {
       case 'spending':
-        return await _getRealSpendingData(userId);
+        return await _getRealSpendingData(
+          userId,
+        );
 
       case 'fuelType':
-        return _getDemoFuelTypeData();
+        return await _getRealFuelTypeData(
+          userId,
+        );
 
       case 'station':
-        return _getDemoStationData();
+        return await _getRealStationData(
+          userId,
+        );
 
       case 'brand':
-        return await _getRealBrandData(userId);
+        return await _getRealBrandData(
+          userId,
+        );
 
       default:
-        return await _getRealSpendingData(userId);
+        return await _getRealSpendingData(
+          userId,
+        );
     }
   }
 
+  // ===========================================================================
+  // GET TRANSACTIONS FOR EXACT MONTH
+  // ===========================================================================
+
+  List<PaymentTransaction>
+  _getTransactionsForMonth(
+      List<PaymentTransaction> transactions,
+      int year,
+      int month,
+      ) {
+    return transactions.where((transaction) {
+      final date =
+          transaction.createdAt;
+
+      return date.year == year &&
+          date.month == month;
+    }).toList();
+  }
 
   // ===========================================================================
   // REAL SPENDING DATA
   // ===========================================================================
 
-  Future<Map<String, dynamic>> _getRealSpendingData(
+  Future<Map<String, dynamic>>
+  _getRealSpendingData(
       String userId,
       ) async {
-    // Get all real payment transactions from Supabase.
+    try {
+      final transactions =
+      await _paymentService
+          .getTransactionHistory(
+        userId,
+      );
+
+      // =======================================================================
+      // SELECTED MONTH
+      // =======================================================================
+
+      final selectedTransactions =
+      _getTransactionsForMonth(
+        transactions,
+        widget.selectedYear,
+        widget.selectedMonth,
+      );
+
+      // =======================================================================
+      // PREVIOUS MONTH
+      // =======================================================================
+
+      final previousMonthDate =
+      DateTime(
+        widget.selectedYear,
+        widget.selectedMonth - 1,
+        1,
+      );
+
+      final previousTransactions =
+      _getTransactionsForMonth(
+        transactions,
+        previousMonthDate.year,
+        previousMonthDate.month,
+      );
+
+      // =======================================================================
+      // SELECTED MONTH SPENDING
+      // =======================================================================
+
+      double selectedSpending = 0.0;
+      double selectedLitres = 0.0;
+
+      for (final transaction
+      in selectedTransactions) {
+        selectedSpending +=
+            transaction.totalAmount;
+
+        selectedLitres +=
+            transaction.quantityLiters;
+      }
+
+      final selectedRefuels =
+          selectedTransactions.length;
+
+      // =======================================================================
+      // PREVIOUS MONTH SPENDING
+      // =======================================================================
+
+      double previousSpending = 0.0;
+      double previousLitres = 0.0;
+
+      for (final transaction
+      in previousTransactions) {
+        previousSpending +=
+            transaction.totalAmount;
+
+        previousLitres +=
+            transaction.quantityLiters;
+      }
+
+      final previousRefuels =
+          previousTransactions.length;
+
+      // =======================================================================
+      // BRAND DATA
+      // =======================================================================
+
+      final selectedBrandCounts =
+      _calculateBrandCounts(
+        selectedTransactions,
+      );
+
+      final selectedBrandPercentages =
+      _calculateBrandPercentages(
+        selectedBrandCounts,
+        selectedRefuels,
+      );
+
+      final selectedMostUsedBrand =
+      _getMostUsedBrand(
+        selectedBrandCounts,
+      );
+
+      final previousBrandCounts =
+      _calculateBrandCounts(
+        previousTransactions,
+      );
+
+      final previousBrandPercentages =
+      _calculateBrandPercentages(
+        previousBrandCounts,
+        previousRefuels,
+      );
+
+      final previousMostUsedBrand =
+      _getMostUsedBrand(
+        previousBrandCounts,
+      );
+
+      // =======================================================================
+      // COMPARISON
+      // =======================================================================
+
+      final spendingDifference =
+          selectedSpending -
+              previousSpending;
+
+      final litresDifference =
+          selectedLitres -
+              previousLitres;
+
+      final refuelsDifference =
+          selectedRefuels -
+              previousRefuels;
+
+      final spendingPercentage =
+      previousSpending == 0
+          ? 0.0
+          : (spendingDifference /
+          previousSpending) *
+          100;
+
+      final litresPercentage =
+      previousLitres == 0
+          ? 0.0
+          : (litresDifference /
+          previousLitres) *
+          100;
+
+      final refuelsPercentage =
+      previousRefuels == 0
+          ? 0.0
+          : (refuelsDifference /
+          previousRefuels) *
+          100;
+
+      // =======================================================================
+      // TREND
+      // =======================================================================
+
+      String spendingTrend;
+
+      if (selectedSpending >
+          previousSpending) {
+        spendingTrend = 'increased';
+      } else if (selectedSpending <
+          previousSpending) {
+        spendingTrend = 'decreased';
+      } else {
+        spendingTrend =
+        'remained the same';
+      }
+
+      // =======================================================================
+      // GENERAL RECOMMENDATION
+      // =======================================================================
+
+      String recommendation;
+
+      if (selectedSpending >
+          previousSpending &&
+          previousSpending > 0) {
+        recommendation =
+        'Your fuel spending increased compared with '
+            '${_monthName(previousMonthDate.month)} '
+            '${previousMonthDate.year}. '
+            'Monitor your refuelling frequency and spending.';
+      } else if (selectedSpending <
+          previousSpending) {
+        recommendation =
+        'Your fuel spending decreased compared with '
+            '${_monthName(previousMonthDate.month)} '
+            '${previousMonthDate.year}. '
+            'Keep maintaining your current spending habits.';
+      } else {
+        recommendation =
+        'Continue monitoring your fuel spending '
+            'to understand your monthly fuel habits.';
+      }
+
+      // =======================================================================
+      // RETURN REAL DATA
+      // =======================================================================
+
+      return {
+        // Selected month
+        'selected_month': {
+          'month':
+          '${_monthName(widget.selectedMonth)} '
+              '${widget.selectedYear}',
+
+          'year':
+          widget.selectedYear,
+
+          'month_number':
+          widget.selectedMonth,
+
+          'spending':
+          selectedSpending,
+
+          'litres':
+          selectedLitres,
+
+          'refuels':
+          selectedRefuels,
+
+          'most_used_brand':
+          selectedMostUsedBrand,
+
+          'brand_counts':
+          selectedBrandCounts,
+
+          'brand_percentages':
+          selectedBrandPercentages,
+        },
+
+        // Kept for Edge Function compatibility.
+        // IMPORTANT: this is the SELECTED MONTH,
+        // NOT DateTime.now().
+        'current_month': {
+          'month':
+          '${_monthName(widget.selectedMonth)} '
+              '${widget.selectedYear}',
+
+          'spending':
+          selectedSpending,
+
+          'litres':
+          selectedLitres,
+
+          'refuels':
+          selectedRefuels,
+
+          'most_used_brand':
+          selectedMostUsedBrand,
+
+          'brand_counts':
+          selectedBrandCounts,
+
+          'brand_percentages':
+          selectedBrandPercentages,
+        },
+
+        // Previous month relative to selected month
+        'previous_month': {
+          'month':
+          '${_monthName(previousMonthDate.month)} '
+              '${previousMonthDate.year}',
+
+          'spending':
+          previousSpending,
+
+          'litres':
+          previousLitres,
+
+          'refuels':
+          previousRefuels,
+
+          'most_used_brand':
+          previousMostUsedBrand,
+
+          'brand_counts':
+          previousBrandCounts,
+
+          'brand_percentages':
+          previousBrandPercentages,
+        },
+
+        'comparison': {
+          'spending_difference':
+          spendingDifference,
+
+          'spending_percentage':
+          spendingPercentage,
+
+          'litres_difference':
+          litresDifference,
+
+          'litres_percentage':
+          litresPercentage,
+
+          'refuels_difference':
+          refuelsDifference,
+
+          'refuels_percentage':
+          refuelsPercentage,
+        },
+
+        'trend':
+        spendingTrend,
+
+        'recommendation':
+        recommendation,
+
+        'source':
+        'Supabase transaction history',
+
+        'limitations':
+        'Analysis is based only on recorded fuel '
+            'transactions in the database.',
+      };
+    } catch (e) {
+      debugPrint(
+        'Error getting real spending data: $e',
+      );
+
+      rethrow;
+    }
+  }
+
+  // ===========================================================================
+  // REAL PETROL BRAND DATA
+  // ===========================================================================
+
+  Future<Map<String, dynamic>>
+  _getRealBrandData(
+      String userId,
+      ) async {
     final transactions =
-    await _paymentService.getTransactionHistory(userId);
+    await _paymentService
+        .getTransactionHistory(
+      userId,
+    );
 
-    final now = DateTime.now();
+    // =======================================================================
+    // SELECTED MONTH
+    // =======================================================================
 
-    // -------------------------------------------------------------------------
-    // Current month
-    // -------------------------------------------------------------------------
+    final selectedTransactions =
+    _getTransactionsForMonth(
+      transactions,
+      widget.selectedYear,
+      widget.selectedMonth,
+    );
 
-    final startOfCurrentMonth = DateTime(
-      now.year,
-      now.month,
+    // =======================================================================
+    // PREVIOUS MONTH
+    // =======================================================================
+
+    final previousMonthDate =
+    DateTime(
+      widget.selectedYear,
+      widget.selectedMonth - 1,
       1,
     );
 
-    final startOfNextMonth = DateTime(
-      now.year,
-      now.month + 1,
-      1,
+    final previousTransactions =
+    _getTransactionsForMonth(
+      transactions,
+      previousMonthDate.year,
+      previousMonthDate.month,
     );
 
-    final currentMonthTransactions =
-    transactions.where((transaction) {
-      final date = transaction.createdAt;
+    // =======================================================================
+    // SELECTED MONTH BRAND COUNTS
+    // =======================================================================
 
-      return !date.isBefore(startOfCurrentMonth) &&
-          date.isBefore(startOfNextMonth);
-    }).toList();
+    final selectedBrandCounts =
+    _calculateBrandCounts(
+      selectedTransactions,
+    );
 
-    // -------------------------------------------------------------------------
-    // Calculate current month values
-    // -------------------------------------------------------------------------
+    final selectedTotalRefuels =
+        selectedTransactions.length;
 
-    double currentSpending = 0.0;
-    double currentLitres = 0.0;
+    final selectedBrandPercentages =
+    _calculateBrandPercentages(
+      selectedBrandCounts,
+      selectedTotalRefuels,
+    );
 
-    for (final transaction in currentMonthTransactions) {
-      currentSpending += transaction.totalAmount;
-      currentLitres += transaction.quantityLiters;
-    }
+    final selectedMostUsedBrand =
+    _getMostUsedBrand(
+      selectedBrandCounts,
+    );
 
-    final currentRefuels =
-        currentMonthTransactions.length;
+    // =======================================================================
+    // PREVIOUS MONTH BRAND COUNTS
+    // =======================================================================
 
-    // -------------------------------------------------------------------------
-    // Previous month
-    //
-    // Temporary baseline from your Fuel Report.
-    // We will replace this with real previous-month data later.
-    // -------------------------------------------------------------------------
+    final previousBrandCounts =
+    _calculateBrandCounts(
+      previousTransactions,
+    );
 
-    const double previousSpending = 180.00;
-    const double previousLitres = 55.0;
-    const int previousRefuels = 6;
+    final previousTotalRefuels =
+        previousTransactions.length;
 
-    // -------------------------------------------------------------------------
-    // Calculate changes
-    // -------------------------------------------------------------------------
+    final previousBrandPercentages =
+    _calculateBrandPercentages(
+      previousBrandCounts,
+      previousTotalRefuels,
+    );
 
-    final spendingDifference =
-        currentSpending - previousSpending;
+    final previousMostUsedBrand =
+    _getMostUsedBrand(
+      previousBrandCounts,
+    );
 
-    final spendingPercentageChange =
-    previousSpending == 0
-        ? 0.0
-        : (spendingDifference / previousSpending) * 100;
+    // =======================================================================
+    // DEBUG
+    // =======================================================================
 
-    final litresDifference =
-        currentLitres - previousLitres;
+    debugPrint(
+      '========================================',
+    );
 
-    final litresPercentageChange =
-    previousLitres == 0
-        ? 0.0
-        : (litresDifference / previousLitres) * 100;
+    debugPrint(
+      'PETROL BRAND ANALYSIS',
+    );
 
-    final refuelsDifference =
-        currentRefuels - previousRefuels;
+    debugPrint(
+      'SELECTED MONTH: '
+          '${_monthName(widget.selectedMonth)} '
+          '${widget.selectedYear}',
+    );
 
-    final refuelsPercentageChange =
-    previousRefuels == 0
-        ? 0.0
-        : (refuelsDifference / previousRefuels) * 100;
+    debugPrint(
+      'SELECTED TOTAL TRANSACTIONS: '
+          '$selectedTotalRefuels',
+    );
 
-    // -------------------------------------------------------------------------
-    // Suggested next-month target
-    //
-    // This is calculated by the application, NOT invented by Gemini.
-    // -------------------------------------------------------------------------
+    debugPrint(
+      'SELECTED BRAND COUNTS: '
+          '$selectedBrandCounts',
+    );
 
-    double targetMin;
-    double targetMax;
+    debugPrint(
+      'SELECTED BRAND PERCENTAGES: '
+          '$selectedBrandPercentages',
+    );
 
-    if (currentSpending > previousSpending) {
-      targetMin = previousSpending;
-      targetMax = previousSpending * 1.20;
-    } else if (currentSpending < previousSpending) {
-      targetMin = currentSpending;
-      targetMax = currentSpending * 1.10;
-    } else {
-      targetMin = currentSpending;
-      targetMax = currentSpending * 1.10;
-    }
+    debugPrint(
+      'PREVIOUS MONTH: '
+          '${_monthName(previousMonthDate.month)} '
+          '${previousMonthDate.year}',
+    );
+
+    debugPrint(
+      'PREVIOUS TOTAL TRANSACTIONS: '
+          '$previousTotalRefuels',
+    );
+
+    debugPrint(
+      'PREVIOUS BRAND COUNTS: '
+          '$previousBrandCounts',
+    );
+
+    debugPrint(
+      '========================================',
+    );
+
+    // =======================================================================
+    // RETURN DATA
+    // =======================================================================
 
     return {
+      'selected_month': {
+        'month':
+        '${_monthName(widget.selectedMonth)} '
+            '${widget.selectedYear}',
+
+        'year':
+        widget.selectedYear,
+
+        'month_number':
+        widget.selectedMonth,
+
+        'total_refuels':
+        selectedTotalRefuels,
+
+        'brand_counts':
+        selectedBrandCounts,
+
+        'brand_percentages':
+        selectedBrandPercentages,
+
+        'most_used_brand':
+        selectedMostUsedBrand,
+      },
+
+      // Compatibility with Edge Function
+      // This is ALSO the selected month.
       'current_month': {
-        'spending': double.parse(
-          currentSpending.toStringAsFixed(2),
-        ),
-        'refuels': currentRefuels,
-        'litres': double.parse(
-          currentLitres.toStringAsFixed(2),
-        ),
+        'month':
+        '${_monthName(widget.selectedMonth)} '
+            '${widget.selectedYear}',
+
+        'total_refuels':
+        selectedTotalRefuels,
+
+        'brand_counts':
+        selectedBrandCounts,
+
+        'brand_percentages':
+        selectedBrandPercentages,
+
+        'most_used_brand':
+        selectedMostUsedBrand,
       },
 
       'previous_month': {
-        'spending': previousSpending,
-        'refuels': previousRefuels,
-        'litres': previousLitres,
+        'month':
+        '${_monthName(previousMonthDate.month)} '
+            '${previousMonthDate.year}',
+
+        'total_refuels':
+        previousTotalRefuels,
+
+        'brand_counts':
+        previousBrandCounts,
+
+        'brand_percentages':
+        previousBrandPercentages,
+
+        'most_used_brand':
+        previousMostUsedBrand,
       },
 
-      'comparison': {
-        'spending_difference': double.parse(
-          spendingDifference.toStringAsFixed(2),
-        ),
-        'spending_change_percentage': double.parse(
-          spendingPercentageChange.toStringAsFixed(1),
-        ),
-        'litres_difference': double.parse(
-          litresDifference.toStringAsFixed(2),
-        ),
-        'litres_change_percentage': double.parse(
-          litresPercentageChange.toStringAsFixed(1),
-        ),
-        'refuels_difference': refuelsDifference,
-        'refuels_change_percentage': double.parse(
-          refuelsPercentageChange.toStringAsFixed(1),
-        ),
-      },
+      'source':
+      'Supabase transaction history',
 
-      'recommendation': {
-        'target_min': double.parse(
-          targetMin.toStringAsFixed(0),
-        ),
-        'target_max': double.parse(
-          targetMax.toStringAsFixed(0),
-        ),
-        'basis': 'Based on the user\'s recorded spending pattern.',
-      },
-
-      'limitations': [
-        'Travel distance is not available.',
-        'Vehicle fuel efficiency cannot be determined.',
-        'Analysis is based on recorded fuel transactions.',
-      ],
+      'note':
+      'Petrol brand is detected from the recorded station name.',
     };
   }
 
   // ===========================================================================
-  // TEMPORARY DEMO DATA
-  //
-  // These will be replaced with REAL data later.
+  // CALCULATE BRAND COUNTS
   // ===========================================================================
 
-  Map<String, dynamic> _getDemoFuelTypeData() {
-    return {
-      'most_used_fuel_type': 'RON95',
-      'percentage_of_refuels': 75,
-      'total_refuels': 8,
-    };
-  }
+  Map<String, int> _calculateBrandCounts(
+      List<PaymentTransaction> transactions,
+      ) {
+    final Map<String, int>
+    brandCounts = {};
 
-  Map<String, dynamic> _getDemoStationData() {
-    return {
-      'most_used_station': 'Shell Taman ABC',
-      'visits': 6,
-      'total_refuels': 8,
-    };
-  }
-
-  Future<Map<String, dynamic>> _getRealBrandData(
-      String userId,
-      ) async {
-    final transactions =
-    await _paymentService.getTransactionHistory(userId);
-
-    final now = DateTime.now();
-
-    final startOfCurrentMonth = DateTime(
-      now.year,
-      now.month,
-      1,
-    );
-
-    final startOfNextMonth = DateTime(
-      now.year,
-      now.month + 1,
-      1,
-    );
-
-    final currentMonthTransactions =
-    transactions.where((transaction) {
-      final date = transaction.createdAt;
-
-      return !date.isBefore(startOfCurrentMonth) &&
-          date.isBefore(startOfNextMonth);
-    }).toList();
-
-    // Count each petrol brand
-    final Map<String, int> brandCounts = {};
-
-    for (final transaction in currentMonthTransactions) {
-      final brand = _detectBrand(
+    for (final transaction
+    in transactions) {
+      final brand =
+      _detectBrand(
         transaction.stationName,
       );
 
@@ -345,48 +764,64 @@ class _AIFuelAnalysisScreenState
       }
     }
 
-    final totalRefuels = currentMonthTransactions.length;
-
-    // Calculate percentage for EVERY brand
-    final Map<String, double> brandPercentages = {};
-
-    for (final entry in brandCounts.entries) {
-      brandPercentages[entry.key] =
-      totalRefuels == 0
-          ? 0
-          : (entry.value / totalRefuels) * 100;
-    }
-
-    String mostUsedBrand = 'No data';
-
-    if (brandCounts.isNotEmpty) {
-      final highestCount = brandCounts.values.reduce(
-            (a, b) => a > b ? a : b,
-      );
-
-      final topBrands = brandCounts.entries
-          .where((entry) => entry.value == highestCount)
-          .map((entry) => entry.key)
-          .toList();
-
-      if (topBrands.length == 1) {
-        mostUsedBrand = topBrands.first;
-      } else {
-        mostUsedBrand = 'No single most used brand';
-      }
-    }
-
-    return {
-      'month':
-      '${_monthName(now.month)} ${now.year}',
-      'total_refuels': totalRefuels,
-      'brand_counts': brandCounts,
-      'brand_percentages': brandPercentages,
-      'most_used_brand': mostUsedBrand,
-    };
+    return brandCounts;
   }
-  String _detectBrand(String stationName) {
-    final name = stationName.toLowerCase();
+
+  // ===========================================================================
+  // CALCULATE BRAND PERCENTAGES
+  // ===========================================================================
+
+  Map<String, double>
+  _calculateBrandPercentages(
+      Map<String, int> brandCounts,
+      int totalRefuels,
+      ) {
+    final Map<String, double>
+    percentages = {};
+
+    for (final entry
+    in brandCounts.entries) {
+      percentages[entry.key] =
+      totalRefuels == 0
+          ? 0.0
+          : (entry.value /
+          totalRefuels) *
+          100;
+    }
+
+    return percentages;
+  }
+
+  // ===========================================================================
+  // GET MOST USED BRAND
+  // ===========================================================================
+
+  String _getMostUsedBrand(Map<String, int> brandCounts) {
+    if (brandCounts.isEmpty) {
+      return 'No data';
+    }
+
+    final highestCount = brandCounts.values.reduce(
+          (a, b) => a > b ? a : b,
+    );
+
+    final topBrands = brandCounts.entries
+        .where((entry) => entry.value == highestCount)
+        .map((entry) => entry.key)
+        .toList();
+
+    return topBrands.join(' & ');
+  }
+
+  // ===========================================================================
+  // DETECT BRAND FROM STATION NAME
+  // ===========================================================================
+
+  String _detectBrand(
+      String stationName,
+      ) {
+    final name =
+    stationName.toLowerCase();
 
     if (name.contains('petronas')) {
       return 'Petronas';
@@ -410,6 +845,130 @@ class _AIFuelAnalysisScreenState
 
     return 'Unknown';
   }
+
+  // ===========================================================================
+  // REAL STATION DATA
+  // ===========================================================================
+
+  Future<Map<String, dynamic>>
+  _getRealStationData(
+      String userId,
+      ) async {
+    final transactions =
+    await _paymentService
+        .getTransactionHistory(
+      userId,
+    );
+
+    final selectedTransactions =
+    _getTransactionsForMonth(
+      transactions,
+      widget.selectedYear,
+      widget.selectedMonth,
+    );
+
+    final Map<String, int>
+    stationCounts = {};
+
+    for (final transaction
+    in selectedTransactions) {
+      final station =
+      transaction.stationName.trim();
+
+      if (station.isEmpty) {
+        continue;
+      }
+
+      stationCounts[station] =
+          (stationCounts[station] ?? 0) + 1;
+    }
+
+    String mostUsedStation =
+        'No data';
+
+    int highestVisits = 0;
+
+    for (final entry
+    in stationCounts.entries) {
+      if (entry.value >
+          highestVisits) {
+        highestVisits =
+            entry.value;
+
+        mostUsedStation =
+            entry.key;
+      }
+    }
+
+    return {
+      'selected_month': {
+        'month':
+        '${_monthName(widget.selectedMonth)} '
+            '${widget.selectedYear}',
+
+        'most_used_station':
+        mostUsedStation,
+
+        'visits':
+        highestVisits,
+
+        'total_refuels':
+        selectedTransactions.length,
+
+        'station_counts':
+        stationCounts,
+      },
+
+      'source':
+      'Supabase transaction history',
+    };
+  }
+
+  // ===========================================================================
+  // REAL FUEL TYPE DATA
+  // ===========================================================================
+
+  Future<Map<String, dynamic>>
+  _getRealFuelTypeData(
+      String userId,
+      ) async {
+    final transactions =
+    await _paymentService
+        .getTransactionHistory(
+      userId,
+    );
+
+    final selectedTransactions =
+    _getTransactionsForMonth(
+      transactions,
+      widget.selectedYear,
+      widget.selectedMonth,
+    );
+
+    return {
+      'selected_month': {
+        'month':
+        '${_monthName(widget.selectedMonth)} '
+            '${widget.selectedYear}',
+
+        'total_refuels':
+        selectedTransactions.length,
+
+        'fuel_type_data_available':
+        false,
+
+        'message':
+        'Fuel type is not available in the recorded transaction data.',
+      },
+
+      'source':
+      'Supabase transaction history',
+    };
+  }
+
+  // ===========================================================================
+  // MONTH NAME
+  // ===========================================================================
 
   String _monthName(int month) {
     const months = [
@@ -460,17 +1019,25 @@ class _AIFuelAnalysisScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor:
+      const Color(0xFFF5F7FA),
+
       appBar: AppBar(
         title: Text(
           _categoryTitle(),
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight:
+            FontWeight.bold,
           ),
         ),
-        backgroundColor: const Color(0xFF1687E8),
-        foregroundColor: Colors.white,
+
+        backgroundColor:
+        const Color(0xFF1687E8),
+
+        foregroundColor:
+        Colors.white,
       ),
+
       body: _buildBody(),
     );
   }
@@ -483,16 +1050,21 @@ class _AIFuelAnalysisScreenState
     if (_isLoading) {
       return const Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+          MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              color: Color(0xFF1687E8),
+              color:
+              Color(0xFF1687E8),
             ),
+
             SizedBox(height: 16),
+
             Text(
               'AI is analysing your fuel data...',
               style: TextStyle(
-                color: Color(0xFF718096),
+                color:
+                Color(0xFF718096),
                 fontSize: 14,
               ),
             ),
@@ -505,16 +1077,485 @@ class _AIFuelAnalysisScreenState
       return _buildError();
     }
 
+    // For Petrol Brand Analysis,
+    // use our real Supabase data to build
+    // the interface so the displayed month
+    // and brand counts cannot be mismatched.
+    if (widget.category == 'brand' &&
+        _analysisData != null) {
+      return _buildBrandAnalysis();
+    }
+
+    return _buildGeneralAnalysis();
+  }
+
+  // ===========================================================================
+  // BRAND ANALYSIS UI
+  // ===========================================================================
+
+  Widget _buildBrandAnalysis() {
+    final selected =
+    _analysisData?['selected_month'];
+
+    if (selected is! Map) {
+      return _buildGeneralAnalysis();
+    }
+
+    final month =
+        selected['month']?.toString() ??
+            '${_monthName(widget.selectedMonth)} '
+                '${widget.selectedYear}';
+
+    final totalRefuels =
+        (selected['total_refuels']
+        as num?)
+            ?.toInt() ??
+            0;
+
+    final mostUsedBrand =
+        selected['most_used_brand']
+            ?.toString() ??
+            'No data';
+
+    final brandCounts =
+    selected['brand_counts'] is Map
+        ? Map<String, dynamic>.from(
+      selected['brand_counts'],
+    )
+        : <String, dynamic>{};
+
+    final brandPercentages =
+    selected['brand_percentages'] is Map
+        ? Map<String, dynamic>.from(
+      selected['brand_percentages'],
+    )
+        : <String, dynamic>{};
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding:
+      const EdgeInsets.all(14),
+
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
         children: [
           _buildAIHeader(),
 
           const SizedBox(height: 20),
 
-          _buildAnalysisCard(),
+          Container(
+            width: double.infinity,
+
+            padding:
+            const EdgeInsets.all(20),
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+
+              borderRadius:
+              BorderRadius.circular(20),
+
+              border: Border.all(
+                color:
+                const Color(0xFFE4EBF2),
+              ),
+            ),
+
+            child: Column(
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+              children: [
+                // ==========================================================
+                // AI INSIGHT
+                // ==========================================================
+
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline,
+                      color:
+                      Color(0xFF1687E8),
+                    ),
+
+                    SizedBox(width: 8),
+
+                    Text(
+                      'AI Insight',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight:
+                        FontWeight.bold,
+                        color:
+                        Color(0xFF123A63),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // ==========================================================
+                // BRAND USAGE SUMMARY
+                // ==========================================================
+
+                const Text(
+                  'Brand Usage Summary',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                Text(
+                  month,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color:
+                    Color(0xFF4A5568),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==========================================================
+                // PRIMARY BRAND
+                // ==========================================================
+
+                Text(
+                  'Primary Brand: $mostUsedBrand',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  _primaryBrandText(
+                    mostUsedBrand,
+                    brandCounts,
+                    brandPercentages,
+                  ),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                    height: 1.5,
+                  ),
+                ),
+
+                const SizedBox(height: 26),
+
+                // ==========================================================
+                // SECONDARY BRANDS
+                // ==========================================================
+
+                if (brandCounts.length > 1) ...[
+                  const Text(
+                    'Secondary Brands:',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color:
+                      Color(0xFF4A5568),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  ..._buildSecondaryBrands(
+                    brandCounts,
+                    brandPercentages,
+                    mostUsedBrand,
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
+
+                // ==========================================================
+                // TOTAL REFUELS
+                // ==========================================================
+
+                Text(
+                  'Total Refuelling Trips: '
+                      '$totalRefuels times',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ==========================================================
+                // WHAT THIS MEANS
+                // ==========================================================
+
+                const Text(
+                  'What this means',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                Text(
+                  _buildBrandMeaning(
+                    mostUsedBrand,
+                    brandCounts,
+                    totalRefuels,
+                  ),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                    height: 1.6,
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ==========================================================
+                // TIP
+                // ==========================================================
+
+                const Text(
+                  'Tip',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                const Text(
+                  'Compare fuel prices between nearby '
+                      'stations before refuelling to make '
+                      'a more informed choice.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                    height: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          _buildDisclaimer(),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // PRIMARY BRAND TEXT
+  // ===========================================================================
+
+  String _primaryBrandText(
+      String brand,
+      Map<String, dynamic> counts,
+      Map<String, dynamic> percentages,
+      ) {
+    final count =
+        (counts[brand] as num?)?.toInt() ??
+            0;
+
+    final percentage =
+        (percentages[brand] as num?)
+            ?.toDouble() ??
+            0.0;
+
+    if (count == 0) {
+      return 'No recorded refuelling transactions for this brand.';
+    }
+
+    return 'Refuels: $count times '
+        '(${percentage.toStringAsFixed(1)}%)';
+  }
+
+  // ===========================================================================
+  // SECONDARY BRANDS
+  // ===========================================================================
+
+  List<Widget> _buildSecondaryBrands(
+      Map<String, dynamic> counts,
+      Map<String, dynamic> percentages,
+      String primaryBrand,
+      ) {
+    final entries =
+    counts.entries
+        .where(
+          (entry) =>
+      entry.key != primaryBrand,
+    )
+        .toList();
+
+    // Sort highest to lowest
+    entries.sort(
+          (a, b) {
+        final aCount =
+        (a.value as num).toInt();
+
+        final bCount =
+        (b.value as num).toInt();
+
+        return bCount.compareTo(aCount);
+      },
+    );
+
+    return entries.map((entry) {
+      final brand =
+          entry.key;
+
+      final count =
+      (entry.value as num).toInt();
+
+      final percentage =
+          (percentages[brand] as num?)
+              ?.toDouble() ??
+              0.0;
+
+      return Padding(
+        padding:
+        const EdgeInsets.only(
+          bottom: 8,
+        ),
+
+        child: Text(
+          '$brand: $count refuels '
+              '(${percentage.toStringAsFixed(1)}%)',
+
+          style: const TextStyle(
+            fontSize: 15,
+            color:
+            Color(0xFF4A5568),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  // ===========================================================================
+  // WHAT THIS MEANS
+  // ===========================================================================
+
+  String _buildBrandMeaning(
+      String primaryBrand,
+      Map<String, dynamic> counts,
+      int totalRefuels,
+      ) {
+    final primaryCount =
+        (counts[primaryBrand] as num?)
+            ?.toInt() ??
+            0;
+
+    if (totalRefuels == 0) {
+      return 'There are no recorded refuelling '
+          'transactions for this month.';
+    }
+
+    if (primaryCount == totalRefuels) {
+      return '$primaryBrand was your only recorded '
+          'fuel brand this month, accounting for '
+          'all $totalRefuels refuelling trips.';
+    }
+
+    return '$primaryBrand was your primary choice '
+        'for most of your refuels, while occasionally '
+        'using other fuel brands.';
+  }
+
+  // ===========================================================================
+  // GENERAL AI ANALYSIS
+  // ===========================================================================
+
+  Widget _buildGeneralAnalysis() {
+    return SingleChildScrollView(
+      padding:
+      const EdgeInsets.all(20),
+
+      child: Column(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        children: [
+          _buildAIHeader(),
+
+          const SizedBox(height: 20),
+
+          Container(
+            width: double.infinity,
+
+            padding:
+            const EdgeInsets.all(20),
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+
+              borderRadius:
+              BorderRadius.circular(20),
+
+              border: Border.all(
+                color:
+                const Color(0xFFE4EBF2),
+              ),
+            ),
+
+            child: Column(
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline,
+                      color:
+                      Color(0xFF1687E8),
+                    ),
+
+                    SizedBox(width: 8),
+
+                    Text(
+                      'AI Insight',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight:
+                        FontWeight.bold,
+                        color:
+                        Color(0xFF123A63),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                Text(
+                  _analysis ??
+                      'No analysis available.',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color:
+                    Color(0xFF4A5568),
+                    height: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
 
           const SizedBox(height: 20),
 
@@ -531,16 +1572,23 @@ class _AIFuelAnalysisScreenState
   Widget _buildAIHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+
+      padding:
+      const EdgeInsets.all(20),
+
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient:
+        const LinearGradient(
           colors: [
             Color(0xFF123A63),
             Color(0xFF1687E8),
           ],
         ),
-        borderRadius: BorderRadius.circular(22),
+
+        borderRadius:
+        BorderRadius.circular(22),
       ),
+
       child: const Row(
         children: [
           Icon(
@@ -548,7 +1596,9 @@ class _AIFuelAnalysisScreenState
             color: Colors.white,
             size: 30,
           ),
+
           SizedBox(width: 12),
+
           Expanded(
             child: Column(
               crossAxisAlignment:
@@ -559,10 +1609,13 @@ class _AIFuelAnalysisScreenState
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 19,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                    FontWeight.bold,
                   ),
                 ),
+
                 SizedBox(height: 4),
+
                 Text(
                   'Personalised analysis based on your fuel data',
                   style: TextStyle(
@@ -579,69 +1632,19 @@ class _AIFuelAnalysisScreenState
   }
 
   // ===========================================================================
-  // ANALYSIS CARD
-  // ===========================================================================
-
-  Widget _buildAnalysisCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFE4EBF2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.lightbulb_outline,
-                color: Color(0xFF1687E8),
-              ),
-              SizedBox(width: 8),
-              Text(
-                'AI Insight',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF123A63),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          Text(
-            _analysis ?? 'No analysis available.',
-            style: const TextStyle(
-              fontSize: 15,
-              color: Color(0xFF4A5568),
-              height: 1.6,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
   // DISCLAIMER
   // ===========================================================================
 
   Widget _buildDisclaimer() {
     return const Text(
-      'This AI analysis is generated from the fuel data recorded in FuelWise MY. '
-          'It is intended to help you understand your fuel spending and usage patterns. '
-          'Travel distance and vehicle fuel efficiency are not available in the current analysis.',
+      'This analysis is based on fuel transactions '
+          'recorded in FuelWise MY. Unrecorded transactions '
+          'are not included.',
+
       style: TextStyle(
         fontSize: 12,
-        color: Color(0xFF718096),
+        color:
+        Color(0xFF718096),
         height: 1.5,
       ),
     );
@@ -654,7 +1657,9 @@ class _AIFuelAnalysisScreenState
   Widget _buildError() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding:
+        const EdgeInsets.all(24),
+
         child: Column(
           mainAxisAlignment:
           MainAxisAlignment.center,
@@ -662,26 +1667,32 @@ class _AIFuelAnalysisScreenState
             const Icon(
               Icons.error_outline,
               size: 60,
-              color: Colors.redAccent,
+              color:
+              Colors.redAccent,
             ),
 
             const SizedBox(height: 16),
 
             const Text(
               'Unable to generate AI analysis',
-              textAlign: TextAlign.center,
+              textAlign:
+              TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF123A63),
+                fontWeight:
+                FontWeight.bold,
+                color:
+                Color(0xFF123A63),
               ),
             ),
 
             const SizedBox(height: 8),
 
             Text(
-              _error ?? 'Unknown error',
-              textAlign: TextAlign.center,
+              _error ??
+                  'Unknown error',
+              textAlign:
+              TextAlign.center,
               style: const TextStyle(
                 fontSize: 13,
                 color: Colors.grey,
@@ -696,12 +1707,17 @@ class _AIFuelAnalysisScreenState
                   _isLoading = true;
                   _error = null;
                   _analysis = null;
+                  _analysisData = null;
                 });
 
                 _loadAIAnalysis();
               },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try Again'),
+
+              icon:
+              const Icon(Icons.refresh),
+
+              label:
+              const Text('Try Again'),
             ),
           ],
         ),
