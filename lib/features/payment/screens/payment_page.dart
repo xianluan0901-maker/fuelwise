@@ -20,6 +20,7 @@ class PaymentPage extends StatefulWidget {
   final String placeId;
   final String stationName;
   final String? stationAddress;
+  final String? stationBrand;
 
   final String? initialVehicleId;
   final String? initialFuelType;
@@ -35,6 +36,7 @@ class PaymentPage extends StatefulWidget {
     this.initialFuelType,
     this.initialLitres,
     this.estimatedPricePerLitre,
+    this.stationBrand,
   });
 
   @override
@@ -78,6 +80,40 @@ class _PaymentPageState extends State<PaymentPage> {
   // Computed Properties
   // ============================================================
 
+  bool get _isEastMalaysia {
+    final address = (widget.stationAddress ?? '').toLowerCase();
+
+    return address.contains('sabah') ||
+        address.contains('sarawak') ||
+        address.contains('labuan');
+  }
+
+  String get _stationBrand {
+    final station = widget.stationName.toLowerCase();
+
+    if (station.contains('petronas')) {
+      return 'petronas';
+    }
+
+    if (station.contains('shell')) {
+      return 'shell';
+    }
+
+    if (station.contains('petron')) {
+      return 'petron';
+    }
+
+    if (station.contains('caltex')) {
+      return 'caltex';
+    }
+
+    if (station.contains('bhp')) {
+      return 'bhp';
+    }
+
+    return '';
+  }
+
   double get _pricePerLiter {
     if (_selectedFuelType == null || _latestPrice == null) {
       return 0;
@@ -91,7 +127,9 @@ class _PaymentPageState extends State<PaymentPage> {
         return _latestPrice!.ron97;
 
       case FuelType.diesel:
-        return _latestPrice!.diesel;
+        return _isEastMalaysia
+            ? _latestPrice!.dieselEastMalaysia
+            : _latestPrice!.diesel;
 
       default:
         return 0;
@@ -243,6 +281,21 @@ class _PaymentPageState extends State<PaymentPage> {
       _availableVouchers = userVouchers
           .where((uv) => uv.isAvailable)
           .map((uv) => uv.voucher!)
+          .where((reward) {
+            final rewardBrand =
+              (reward.stationBrand ?? '').toLowerCase().trim();
+
+            final currentStationBrand =
+              (widget.stationBrand ?? '').toLowerCase().trim();
+
+            // No station brand means Universal
+            if (rewardBrand.isEmpty) {
+              return true;
+            }
+
+            // Only show rewards matching the current station brand
+            return rewardBrand == _stationBrand;
+          })
           .toList();
 
       _userPoints =
@@ -1230,12 +1283,11 @@ class _PaymentPageState extends State<PaymentPage> {
           TextField(
             controller: _litersController,
 
-            keyboardType:
-            TextInputType.number,
+            keyboardType: TextInputType.number,
 
             inputFormatters: [
               FilteringTextInputFormatter.allow(
-                RegExp(r'^\d*\.?\d{0,2}'),
+                RegExp(r'^\d*\.?\d{0,2}$'),
               ),
             ],
 
