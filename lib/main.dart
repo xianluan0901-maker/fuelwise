@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'features/user_account/screens/login_screen.dart';
 import 'features/fuel_price/screens/home_screen.dart';
-
+import 'features/user_account/screens/reset_password_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +12,9 @@ Future<void> main() async {
   await Supabase.initialize(
     url: 'https://bqwvctzyijyfdefjrubj.supabase.co',
     publishableKey: 'sb_publishable_CabkXlDKHbbDH_rsTBL_nQ_JGsMugax',
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
   );
 
   runApp(const MainApp());
@@ -24,9 +27,8 @@ class MainApp extends StatefulWidget {
   State<MainApp> createState() => _MainAppState();
 }
 
+
 class _MainAppState extends State<MainApp> {
-
-
   @override
   Widget build(BuildContext context) {
     const primaryBlue = Color(0xFF1687E8);
@@ -99,23 +101,74 @@ class _MainAppState extends State<MainApp> {
     );
   }
 }
-
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool isPasswordRecovery = false;
+  bool recoveryNavigationDone = false;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final event = snapshot.data!.event;
+
+          debugPrint('AUTH EVENT: $event');
+          debugPrint(
+            'SESSION EXISTS: ${snapshot.data!.session != null}',
+          );
+
+          if (event == AuthChangeEvent.passwordRecovery) {
+            debugPrint('PASSWORD RECOVERY DETECTED');
+
+            isPasswordRecovery = true;
+
+            if (!recoveryNavigationDone) {
+              recoveryNavigationDone = true;
+
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) =>
+                    const ResetPasswordScreen(),
+                  ),
+                      (route) => route.isFirst,
+                );
+              });
+            }
+          }
+
+          if (event == AuthChangeEvent.signedOut) {
+            debugPrint('USER SIGNED OUT');
+
+            isPasswordRecovery = false;
+            recoveryNavigationDone = false;
+          }
+        }
+
+        if (isPasswordRecovery) {
+          return const ResetPasswordScreen();
+        }
+
         final session =
             snapshot.data?.session ??
                 Supabase.instance.client.auth.currentSession;
 
         if (session != null) {
+          debugPrint('SHOWING BOTTOM NAV');
           return const BottomNavBar();
         }
 
+        debugPrint('SHOWING LOGIN');
         return const LoginScreen();
       },
     );

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-//import 'package:fuelwisee/shared/widgets/main_navigation.dart';
-import '../../fuel_price/screens/home_screen.dart';
-import 'signup_screen.dart';
-import '../../../shared/widgets/main_navigation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,10 +15,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
+  bool isLoading = false;
+  bool _obscurePassword = true;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Login")),
+      appBar: AppBar(
+        title: const Text("Login"),
+      ),
 
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -33,16 +37,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 labelText: "Email",
                 border: OutlineInputBorder(),
               ),
+              keyboardType: TextInputType.emailAddress,
             ),
 
             const SizedBox(height: 15),
 
             TextField(
               controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
                 labelText: "Password",
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
               ),
             ),
 
@@ -51,11 +68,40 @@ class _LoginScreenState extends State<LoginScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: login,
-                child: const Text("Login"),
+                onPressed: isLoading ? null : login,
+                child: isLoading
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                  ),
+                )
+                    : const Text("Login"),
               ),
             ),
+
             const SizedBox(height: 15),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                      const ForgotPasswordScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Forgot Password?',
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 5),
 
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -67,11 +113,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const SignupScreen(),
+                        builder: (context) =>
+                        const SignupScreen(),
                       ),
                     );
                   },
-
                   child: const Text(
                     "Sign Up",
                     style: TextStyle(
@@ -89,63 +135,75 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> login() async {
-    final String email = emailController.text.trim();
-    final String password = passwordController.text;
+    print("LOGIN BUTTON CLICKED");
 
-    // Check empty input
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please enter email and password"),
-        ),
-      );
-      return;
-    }
+    setState(() {
+      isLoading = true;
+    });
 
     try {
-      final supabase = Supabase.instance.client;
+      final email = emailController.text.trim();
+      final password = passwordController.text;
 
-      // Login using Supabase Auth
-      final response = await supabase.auth.signInWithPassword(
+      if (email.isEmpty || password.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please enter your email and password.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final response =
+      await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
-      // Check whether login was successful
       if (response.user != null) {
         print("LOGIN SUCCESS");
         print("USER ID: ${response.user!.id}");
         print("EMAIL: ${response.user!.email}");
 
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const MainNavigation(),
-            ),
-          );
-        }
+        // Do NOT navigate manually.
+        // AuthGate will detect the new session
+        // and show BottomNavBar automatically.
       }
     } on AuthException catch (e) {
-      print("LOGIN ERROR: ${e.message}");
+      print("LOGIN FAILED: ${e.message}");
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-          ),
-        );
-      }
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+        ),
+      );
     } catch (e) {
       print("LOGIN ERROR: $e");
 
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: $e'),
+        ),
+      );
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Something went wrong."),
-          ),
-        );
+        setState(() {
+          isLoading = false;
+        });
       }
     }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 }
