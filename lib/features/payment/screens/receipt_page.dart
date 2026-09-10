@@ -17,6 +17,7 @@ class ReceiptPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Payment Receipt'),
         actions: const [],
       ),

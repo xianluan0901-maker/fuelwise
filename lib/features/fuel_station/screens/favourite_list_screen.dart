@@ -1,5 +1,3 @@
-// features/fuel_station/screens/favorite_list_screen.dart
-
 import 'package:flutter/material.dart';
 import '../models/favourite_model.dart';
 import '../models/fuel_station_model.dart';

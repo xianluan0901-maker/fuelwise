@@ -26,29 +26,18 @@ class StationListScreen extends StatefulWidget {
 class _StationListScreenState extends State<StationListScreen> {
   late final WebViewController _webViewController;
 
-  // ============================================================
-  // SERVICES
-  // ============================================================
+
 
   final FuelStationService _stationService =
   FuelStationService();
 
-  // ============================================================
-  // LOCATION
-  // ============================================================
 
   Position? currentPosition;
 
-  // ============================================================
-  // DATA
-  // ============================================================
 
   List<FuelStation> _allStations = [];
   List<FuelStation> _displayedStations = [];
 
-  // ============================================================
-  // UI STATE
-  // ============================================================
 
   bool isLoading = true;
 
@@ -60,15 +49,11 @@ class _StationListScreenState extends State<StationListScreen> {
 
   Timer? _searchDebounce;
 
-  // ============================================================
-  // CONSTANT
-  // ============================================================
+
 
   static const double _nearbyRadius = 10000;
 
-  // ============================================================
-  // INIT
-  // ============================================================
+
 
   @override
   void initState() {
@@ -86,9 +71,6 @@ class _StationListScreenState extends State<StationListScreen> {
     super.dispose();
   }
 
-  // ============================================================
-  // WEBVIEW
-  // ============================================================
 
   void _initWebView() {
     _webViewController = WebViewController()
@@ -129,9 +111,6 @@ class _StationListScreenState extends State<StationListScreen> {
       );
   }
 
-  // ============================================================
-  // CURRENT LOCATION
-  // ============================================================
 
   Future<void> _getCurrentLocation() async {
     try {
@@ -140,9 +119,6 @@ class _StationListScreenState extends State<StationListScreen> {
         errorMessage = null;
       });
 
-      // --------------------------------------------------------
-      // Check location service
-      // --------------------------------------------------------
 
       final serviceEnabled =
       await Geolocator.isLocationServiceEnabled();
@@ -154,9 +130,7 @@ class _StationListScreenState extends State<StationListScreen> {
         );
       }
 
-      // --------------------------------------------------------
-      // Check permission
-      // --------------------------------------------------------
+
 
       LocationPermission permission =
       await Geolocator.checkPermission();
@@ -177,9 +151,6 @@ class _StationListScreenState extends State<StationListScreen> {
         );
       }
 
-      // --------------------------------------------------------
-      // Get REAL GPS location
-      // --------------------------------------------------------
 
       final position =
       await Geolocator.getCurrentPosition(
@@ -197,9 +168,7 @@ class _StationListScreenState extends State<StationListScreen> {
             '${position.longitude}',
       );
 
-      // --------------------------------------------------------
-      // Load real nearby stations
-      // --------------------------------------------------------
+
 
       await _loadNearbyStations();
     } catch (e) {
@@ -216,29 +185,16 @@ class _StationListScreenState extends State<StationListScreen> {
     }
   }
 
-  // ============================================================
-  // MALAYSIA VALIDATION
-  //
-  // Only allow fuel stations located in Malaysia.
-  // ============================================================
-
   bool _isMalaysianStation(
       FuelStation station,
       ) {
     final address =
     station.stationAddress.toLowerCase();
 
-    // ----------------------------------------------------------
-    // Malaysia country name
-    // ----------------------------------------------------------
 
     if (address.contains('malaysia')) {
       return true;
     }
-
-    // ----------------------------------------------------------
-    // Malaysian states / federal territories
-    // ----------------------------------------------------------
 
     const malaysiaLocations = [
       'kuala lumpur',
@@ -267,9 +223,6 @@ class _StationListScreenState extends State<StationListScreen> {
     );
   }
 
-  // ============================================================
-  // FILTER MALAYSIA STATIONS
-  // ============================================================
 
   List<FuelStation> _filterMalaysiaStations(
       List<FuelStation> stations,
@@ -278,14 +231,6 @@ class _StationListScreenState extends State<StationListScreen> {
         .where(_isMalaysianStation)
         .toList();
   }
-
-  // ============================================================
-  // LOAD REAL NEARBY STATIONS
-  //
-  // Google Places API
-  // Radius = 10 km
-  // ============================================================
-
   Future<void> _loadNearbyStations() async {
     if (currentPosition == null) {
       return;
@@ -305,12 +250,6 @@ class _StationListScreenState extends State<StationListScreen> {
         currentPosition!.longitude,
         radius: _nearbyRadius,
       );
-
-      // ========================================================
-      // IMPORTANT
-      //
-      // Only keep stations located in Malaysia.
-      // ========================================================
 
       final malaysiaStations =
       _filterMalaysiaStations(stations);
@@ -349,13 +288,6 @@ class _StationListScreenState extends State<StationListScreen> {
     }
   }
 
-  // ============================================================
-  // SEARCH
-  //
-  // Google Places Text Search
-  // Real station name / address
-  // ============================================================
-
   void _searchStations(
       String keyword,
       ) {
@@ -363,14 +295,6 @@ class _StationListScreenState extends State<StationListScreen> {
 
     _searchDebounce?.cancel();
 
-    // ----------------------------------------------------------
-    // User deleted search keyword
-    //
-    // Return to:
-    // REAL current location
-    // +
-    // nearby 10 km stations
-    // ----------------------------------------------------------
 
     if (keyword.trim().isEmpty) {
       _selectedBrand = null;
@@ -385,10 +309,6 @@ class _StationListScreenState extends State<StationListScreen> {
       return;
     }
 
-    // ----------------------------------------------------------
-    // Small debounce
-    // Avoid calling Google API for every single keystroke
-    // ----------------------------------------------------------
 
     _searchDebounce = Timer(
       const Duration(
@@ -401,10 +321,6 @@ class _StationListScreenState extends State<StationListScreen> {
       },
     );
   }
-
-  // ============================================================
-  // PERFORM SEARCH
-  // ============================================================
 
   Future<void> _performSearch(
       String query,
@@ -428,21 +344,11 @@ class _StationListScreenState extends State<StationListScreen> {
         currentPosition!.longitude,
       );
 
-      // ========================================================
-      // IMPORTANT
-      //
-      // Google may return stations outside Malaysia.
-      // Filter them BEFORE displaying them.
-      // ========================================================
 
       final malaysiaResults =
       _filterMalaysiaStations(results);
 
       if (!mounted) return;
-
-      // --------------------------------------------------------
-      // Apply selected brand filter
-      // --------------------------------------------------------
 
       final filtered =
       _applyBrandFilter(
@@ -481,11 +387,6 @@ class _StationListScreenState extends State<StationListScreen> {
     }
   }
 
-  // ============================================================
-  // BRAND FILTER
-  //
-  // Filter REAL Google Places results
-  // ============================================================
 
   void _filterByBrand(
       String? brand,
@@ -528,9 +429,6 @@ class _StationListScreenState extends State<StationListScreen> {
     }).toList();
   }
 
-  // ============================================================
-  // CLEAR SEARCH / FILTER
-  // ============================================================
 
   void _clearFilters() {
     _searchDebounce?.cancel();
@@ -544,17 +442,10 @@ class _StationListScreenState extends State<StationListScreen> {
           _allStations;
     });
 
-    // ----------------------------------------------------------
-    // Reload real nearby stations
-    // based on current GPS location
-    // ----------------------------------------------------------
 
     _loadNearbyStations();
   }
 
-  // ============================================================
-  // OPEN STATION DETAIL
-  // ============================================================
 
   void _openStationDetail(
       String placeId,
@@ -615,10 +506,6 @@ class _StationListScreenState extends State<StationListScreen> {
       ),
     );
   }
-
-  // ============================================================
-  // GENERATE GOOGLE MAP HTML
-  // ============================================================
 
   String _generateMapHtml() {
     if (currentPosition == null) {
@@ -709,19 +596,12 @@ let map;
 
 function initMap() {
 
-  // ==========================================================
-  // CURRENT LOCATION
-  // ==========================================================
 
   const currentLocation = {
     lat: $lat,
     lng: $lng
   };
 
-
-  // ==========================================================
-  // CREATE MAP
-  // ==========================================================
 
   map = new google.maps.Map(
     document.getElementById('map'),
@@ -739,11 +619,6 @@ function initMap() {
       zoomControl: true
     }
   );
-
-
-  // ==========================================================
-  // CURRENT LOCATION MARKER
-  // ==========================================================
 
   const currentLocationIcon = {
 
@@ -781,9 +656,6 @@ function initMap() {
   });
 
 
-  // ==========================================================
-  // REAL GOOGLE PLACES STATIONS
-  // ==========================================================
 
   const stations =
       $stationsJs;
@@ -843,9 +715,7 @@ function initMap() {
   );
 
 
-  // ==========================================================
-  // SEARCH RESULT MAP MOVEMENT
-  // ==========================================================
+
 
   const searchKeyword =
       $searchKeywordJs;
@@ -937,10 +807,6 @@ function initMap() {
 ''';
   }
 
-  // ============================================================
-  // UPDATE MAP
-  // ============================================================
-
   void _updateMap() {
     if (currentPosition == null) {
       return;
@@ -953,9 +819,6 @@ function initMap() {
         .loadHtmlString(html);
   }
 
-  // ============================================================
-  // BUILD UI
-  // ============================================================
 
   @override
   Widget build(
@@ -965,9 +828,6 @@ function initMap() {
       backgroundColor:
       const Color(0xFFF5F7FA),
 
-      // ========================================================
-      // APP BAR
-      // ========================================================
 
       appBar: AppBar(
         title: Text(
@@ -1009,16 +869,8 @@ function initMap() {
         ],
       ),
 
-      // ========================================================
-      // BODY
-      // ========================================================
-
       body: Column(
         children: [
-
-          // ====================================================
-          // SEARCH + BRAND FILTER
-          // ====================================================
 
           Container(
             color:
@@ -1034,10 +886,6 @@ function initMap() {
 
             child: Row(
               children: [
-
-                // ==============================================
-                // SEARCH BAR
-                // ==============================================
 
                 Expanded(
                   child: Container(
@@ -1136,9 +984,6 @@ function initMap() {
                   width: 12,
                 ),
 
-                // ==============================================
-                // BRAND FILTER
-                // ==============================================
 
                 Container(
                   height: 50,
@@ -1283,10 +1128,6 @@ function initMap() {
             ),
           ),
 
-          // ====================================================
-          // MAP
-          // ====================================================
-
           Expanded(
             child: Stack(
               children: [
@@ -1295,10 +1136,6 @@ function initMap() {
                   controller:
                   _webViewController,
                 ),
-
-                // ==============================================
-                // LOADING
-                // ==============================================
 
                 if (isLoading)
                   Container(
@@ -1330,10 +1167,6 @@ function initMap() {
                       ),
                     ),
                   ),
-
-                // ==============================================
-                // ERROR
-                // ==============================================
 
                 if (
                 errorMessage != null &&
@@ -1430,9 +1263,6 @@ function initMap() {
                     ),
                   ),
 
-                // ==============================================
-                // RESULT COUNT
-                // ==============================================
 
                 if (
                 !isLoading &&
@@ -1512,13 +1342,6 @@ function initMap() {
                       ),
                     ),
                   ),
-
-                // ==============================================
-                // NO RESULTS
-                //
-                // NEW:
-                // Centered in the map area.
-                // ==============================================
 
                 if (
                 !isLoading &&

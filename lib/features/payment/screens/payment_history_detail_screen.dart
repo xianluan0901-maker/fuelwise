@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../models/payment_model.dart';
 
 class PaymentHistoryDetailScreen extends StatelessWidget {
@@ -61,6 +62,10 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
                   _buildDetailRow('Wallet Ref', transaction.transactionId),
                   _buildDetailRow('Status', transaction.status),
                   _buildDetailRow('Transaction No.', transaction.id),
+                  if (transaction.qrCodeData != null) ...[
+                    const SizedBox(height: 24),
+                    _buildQRCode(),
+                  ],
                 ],
               ),
             ),
@@ -104,5 +109,73 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
 
   String _formatFullDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+  Widget _buildQRCode() {
+    if (transaction.qrCodeData == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFE4EBF2),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Show this QR code at the counter',
+            style: TextStyle(
+              color: Color(0xFF153B60),
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFE4EBF2),
+              ),
+            ),
+            child: QrImageView(
+              data: transaction.qrCodeData!,
+              size: 180,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(
+                color: Color(0xFF1687E8),
+                eyeShape: QrEyeShape.square,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                color: Color(0xFF1687E8),
+                dataModuleShape: QrDataModuleShape.square,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Transaction: ${transaction.transactionId}',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
