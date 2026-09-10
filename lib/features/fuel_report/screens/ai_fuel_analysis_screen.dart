@@ -462,14 +462,7 @@ class _AIFuelAnalysisScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: Text(
-          _categoryTitle(),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: const Color(0xFF1687E8),
-        foregroundColor: Colors.white,
+        title: Text(_categoryTitle()),
       ),
       body: _buildBody(),
     );

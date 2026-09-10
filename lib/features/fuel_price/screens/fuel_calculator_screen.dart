@@ -407,15 +407,7 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE1F2FF),
-        centerTitle: true,
-        title: const Text(
-          'Fuel Estimator',
-          style: TextStyle(
-            color: _dark,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Fuel Estimator'),
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -593,7 +585,8 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Adjustable for this estimate only.',
+          'For heavy traffic or uphill driving, use a lower km/L '
+              'based on your vehicle’s actual consumption. ',
           style: TextStyle(color: _muted, fontSize: 12),
         ),
         const Divider(height: 28),
@@ -619,10 +612,7 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
           ],
         ),
         const SizedBox(height: 4),
-        Text(
-          'Updated ${DateFormat('d MMM yyyy').format(_prices!.date)}',
-          style: const TextStyle(color: _muted, fontSize: 11),
-        ),
+
         if (_fuelType == 'Diesel') ...[
           const SizedBox(height: 10),
           DropdownButtonFormField<bool>(
@@ -901,13 +891,11 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
           ),
         ],
         const SizedBox(height: 12),
-        Text(
-          result.alternativePrice
-              ? 'Estimates vary with driving conditions. '
-              'Payment may use a different fuel price.'
-              : 'Estimates vary with driving conditions. '
-              'Review the final amount in payment.',
-          style: const TextStyle(
+        const Text(
+          'Estimate only. Traffic and hills may increase fuel use; '
+              '10% extra may not be enough. Check your fuel gauge '
+              'and confirm the price before paying.',
+          style: TextStyle(
             color: _muted,
             fontSize: 11,
             height: 1.4,

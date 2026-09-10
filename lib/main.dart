@@ -49,10 +49,24 @@ class _MainAppState extends State<MainApp> {
         ),
 
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          foregroundColor: darkBlue,
+          backgroundColor: Color(0xFFE1F2FF),
+          foregroundColor: Color(0xFF153B60),
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
-          centerTitle: false,
+          scrolledUnderElevation: 0,
+          centerTitle: true,
+          toolbarHeight: 56,
+          titleTextStyle: TextStyle(
+            color: Color(0xFF153B60),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          iconTheme: IconThemeData(
+            color: Color(0xFF153B60),
+          ),
+          actionsIconTheme: IconThemeData(
+            color: Color(0xFF153B60),
+          ),
         ),
 
         cardTheme: CardThemeData(

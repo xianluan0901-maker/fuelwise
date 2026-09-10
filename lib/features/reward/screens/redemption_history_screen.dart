@@ -77,14 +77,7 @@ class _RedemptionHistoryScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF5F8FC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F8FC),
-        title: const Text(
-          'Redemption History',
-          style: TextStyle(
-            color: Color(0xFF173B57),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        title: const Text('Redemption History'),
       ),
       body: FutureBuilder<List<UserVoucher>>(
         future: _historyFuture,

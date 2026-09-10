@@ -940,54 +940,22 @@ function initMap() {
       // ========================================================
 
       appBar: AppBar(
-
-        backgroundColor:
-        const Color(0xFFE1F2FF),
-
-        elevation: 0,
-
-        centerTitle: true,
-
         title: Text(
           widget.selectionMode ? 'Choose a station' : 'Fuel Stations',
-          style: const TextStyle(
-            color: Color(0xFF153B60),
-            fontWeight: FontWeight.bold,
-          ),
         ),
-
         actions: [
-
           IconButton(
-
-            icon: const Icon(
-              Icons.favorite,
-              color:
-              Color(0xFF1687E8),
-            ),
-
+            icon: const Icon(Icons.favorite),
             onPressed: () {
-
-              ScaffoldMessenger
-                  .of(context)
-                  .showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    'Favorites coming soon!',
-                  ),
-                  duration:
-                  Duration(
-                    seconds: 1,
-                  ),
+                  content: Text('Favorites coming soon!'),
+                  duration: Duration(seconds: 1),
                 ),
               );
-
             },
-
           ),
-
         ],
-
       ),
 
       // ========================================================

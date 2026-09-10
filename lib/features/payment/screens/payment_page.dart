@@ -371,16 +371,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE1F2FF),
-        centerTitle: true,
-        elevation: 0,
-        title: const Text(
-          'Fuel Purchase',
-          style: TextStyle(
-            color: Color(0xFF153B60),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Fuel Purchase'),
       ),
       body: _isLoading
           ? const Center(

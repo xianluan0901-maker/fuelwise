@@ -204,15 +204,7 @@ class _RewardCatalogueScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF5F8FC),
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: const Color(0xFFF5F8FC),
-        title: const Text(
-          'Reward Catalogue',
-          style: TextStyle(
-            color: Color(0xFF173B57),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        title: const Text('Reward Catalogue'),
       ),
       body: _buildBody(),
     );

@@ -140,6 +140,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       body: SafeArea(
+        left: false,
+        right: false,
         child: RefreshIndicator(
           onRefresh: _loadLatestPrice,
           child: ListView(
@@ -149,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildTopSection(),
               const SizedBox(height: 22),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _buildContent(),
               ),
             ],
@@ -160,8 +162,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTopSection() {
+    final safePadding = MediaQuery.paddingOf(context);
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      padding: EdgeInsets.fromLTRB(
+        20 + safePadding.left,
+        20,
+        20 + safePadding.right,
+        24,
+      ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFFDCEFFF), Color(0xFFEDF7FF)],
@@ -814,7 +823,9 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const FuelHistoryScreen(),
+        builder: (context) => FuelHistoryScreen(
+          initialIsEastMalaysia: _isEastMalaysia,
+        ),
       ),
     );
   }
