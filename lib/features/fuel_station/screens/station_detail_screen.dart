@@ -409,6 +409,8 @@ class _StationDetailScreenState
                                   stationName: name,
                                   stationAddress:
                                   address,
+                                  stationBrand:
+                                  widget.station.brand,
                                 ),
                           ),
                         );
