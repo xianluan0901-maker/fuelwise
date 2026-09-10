@@ -17,17 +17,8 @@ class ReceiptPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE1F2FF),
-        centerTitle: true,
-        elevation: 0,
-        title: const Text(
-          'Payment Receipt',
-          style: TextStyle(
-            color: Color(0xFF153B60),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: const [], // ✅ Share 按钮已移除
+        title: const Text('Payment Receipt'),
+        actions: const [],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),

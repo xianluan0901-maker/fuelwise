@@ -288,16 +288,7 @@ class _VehicleListScreenState
       backgroundColor:
       const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor:
-        const Color(0xFFE1F2FF),
-        centerTitle: true,
-        title: const Text(
-          'My Vehicles',
-          style: TextStyle(
-            color: Color(0xFF153B60),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('My Vehicles'),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAddVehicle,

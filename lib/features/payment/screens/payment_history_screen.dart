@@ -212,8 +212,6 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('History'),
-        backgroundColor: const Color(0xFF1687E8),
-        foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
       ),
       body: Column(

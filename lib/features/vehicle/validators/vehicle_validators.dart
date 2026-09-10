@@ -82,8 +82,14 @@ class VehicleValidators {
   }
 
   static String? tankCapacity(String? value) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) {
+      return 'Please enter the tank capacity.';
+    }
+
     return _decimalRange(
-      value,
+      text,
       minimum: 5,
       maximum: 200,
       unit: 'L',

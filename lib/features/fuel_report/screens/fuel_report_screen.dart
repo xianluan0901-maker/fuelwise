@@ -507,14 +507,7 @@ class _FuelReportScreenState extends State<FuelReportScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text(
-          'Fuel Report',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: const Color(0xFF1687E8),
-        foregroundColor: Colors.white,
+        title: const Text('Fuel Report'),
       ),
       body: _isLoading
           ? const Center(

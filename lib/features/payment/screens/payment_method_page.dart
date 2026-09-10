@@ -276,16 +276,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE1F2FF),
-        centerTitle: true,
-        elevation: 0,
-        title: const Text(
-          'Payment Method',
-          style: TextStyle(
-            color: Color(0xFF153B60),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Payment Method'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
