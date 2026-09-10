@@ -171,15 +171,7 @@ class _VehicleDetailScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE4F3FF),
-        foregroundColor: const Color(0xFF153B60),
-        elevation: 0,
-        title: const Text(
-          'Vehicle Details',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Vehicle Details'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(

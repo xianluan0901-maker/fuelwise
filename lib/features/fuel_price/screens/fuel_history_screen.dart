@@ -6,7 +6,12 @@ import '../services/fuel_price_service.dart';
 import '../widgets/fuel_trend_chart.dart';
 
 class FuelHistoryScreen extends StatefulWidget {
-  const FuelHistoryScreen({super.key});
+  final bool initialIsEastMalaysia;
+
+  const FuelHistoryScreen({
+    super.key,
+    this.initialIsEastMalaysia = false,
+  });
 
   @override
   State<FuelHistoryScreen> createState() {
@@ -25,10 +30,12 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
   int _selectedDays = 30;
   bool _isLoading = true;
   String? _errorMessage;
+  late bool _isEastMalaysia;
 
   @override
   void initState() {
     super.initState();
+    _isEastMalaysia = widget.initialIsEastMalaysia;
     _loadHistory();
   }
 
@@ -84,8 +91,7 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
         return price.ron97;
 
       case 'Diesel':
-      // This uses the Peninsular Malaysia diesel price.
-        return price.diesel;
+        return price.dieselForRegion(_isEastMalaysia);
 
       case 'RON95':
       default:
@@ -112,15 +118,7 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE1F2FF),
-        title: const Text(
-          'Fuel Price History',
-          style: TextStyle(
-            color: Color(0xFF153B60),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
+        title: const Text('Fuel Price History'),
       ),
       body: RefreshIndicator(
         onRefresh: _loadHistory,
@@ -173,6 +171,8 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
       children: [
+        _buildRegionSelector(),
+        const SizedBox(height: 12),
         _buildFuelSelector(),
         const SizedBox(height: 16),
         _buildChartSection(filteredHistory),
@@ -192,6 +192,41 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
         const SizedBox(height: 5),
         _buildHistoryList(filteredHistory),
       ],
+    );
+  }
+
+  Widget _buildRegionSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<bool>(
+          value: _isEastMalaysia,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          items: const [
+            DropdownMenuItem(
+              value: false,
+              child: Text('West Malaysia'),
+            ),
+            DropdownMenuItem(
+              value: true,
+              child: Text('East Malaysia'),
+            ),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+
+            setState(() {
+              _isEastMalaysia = value;
+            });
+          },
+        ),
+      ),
     );
   }
 
@@ -323,6 +358,7 @@ class _FuelHistoryScreenState extends State<FuelHistoryScreen> {
             child: FuelTrendChart(
               prices: filteredHistory,
               fuelTypes: _selectedFuels.toList(),
+              isEastMalaysia: _isEastMalaysia,
             ),
           ),
           const SizedBox(height: 12),

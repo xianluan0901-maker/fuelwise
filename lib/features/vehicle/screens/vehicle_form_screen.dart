@@ -247,15 +247,9 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE1F2FF),
         title: Text(
           _isEditing ? 'Edit Vehicle' : 'Add Vehicle',
-          style: const TextStyle(
-            color: Color(0xFF153B60),
-            fontWeight: FontWeight.bold,
-          ),
         ),
-        centerTitle: true,
       ),
       body: Form(
         key: _formKey,
@@ -287,7 +281,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                     UpperCaseTextFormatter(),
                   ],
                   helperText:
-                  'Spaces are optional. Example: ABC1234 or SAB1234A.',
+                  'Example: ABC1234 or SAB1234A.',
                   validator: VehicleValidators.plateNumber,
                 ),
                 const SizedBox(height: 15),
@@ -364,7 +358,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                     VehicleDecimalInputFormatter(),
                   ],
                   validator: VehicleValidators.tankCapacity,
-                  helperText: 'Optional. Passenger cars: 5–200 L.',
+                  helperText: 'Required. 5–200 L',
                 ),
               ],
             ),

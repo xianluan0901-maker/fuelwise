@@ -52,17 +52,7 @@ class _RewardHomeScreenState extends State<RewardHomeScreen> {
       backgroundColor: const Color(0xFFF5F8FC),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: const Color(0xFFF5F8FC),
-        title: const Text(
-          'My Rewards',
-          style: TextStyle(
-            color: Color(0xFF173B57),
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        title: const Text('My Rewards'),
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _pointsFuture,

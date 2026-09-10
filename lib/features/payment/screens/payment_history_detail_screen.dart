@@ -11,10 +11,6 @@ class PaymentHistoryDetailScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1687E8),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
         title: const Text('Details'),
       ),
       body: SingleChildScrollView(

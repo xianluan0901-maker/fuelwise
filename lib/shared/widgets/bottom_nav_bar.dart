@@ -22,7 +22,6 @@ class _BottomNavBarState extends State<BottomNavBar> {
     const HomeScreen(),
     const StationListScreen(),
     const PaymentHistoryScreen(),
-    //const Center(child: Text("Reward")),
     const RewardHomeScreen(),
     const ProfileMainScreen(),
   ];
@@ -81,7 +80,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person),
-                  label: "Profile",
+                  label: "Account",
                 ),
               ],
             ),

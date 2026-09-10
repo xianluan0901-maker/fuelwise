@@ -182,7 +182,7 @@ class _MainNavigationState extends State<MainNavigation> {
                   activeIcon: Icon(
                     Icons.person_rounded,
                   ),
-                  label: 'Profile',
+                  label: 'Account',
                 ),
               ],
             ),

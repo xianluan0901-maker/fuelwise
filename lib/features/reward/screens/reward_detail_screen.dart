@@ -206,14 +206,7 @@ class _RewardDetailScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF5F8FC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F8FC),
-        title: const Text(
-          'Reward Details',
-          style: TextStyle(
-            color: Color(0xFF173B57),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        title: const Text('Reward Details'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
