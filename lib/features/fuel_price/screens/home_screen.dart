@@ -166,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Container(
       padding: EdgeInsets.fromLTRB(
-        20 + safePadding.left,
+        20,
         20,
         20 + safePadding.right,
         24,
