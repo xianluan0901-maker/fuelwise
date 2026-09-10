@@ -1031,11 +1031,7 @@ class _AIFuelAnalysisScreenState
           ),
         ),
 
-        backgroundColor:
-        const Color(0xFF1687E8),
 
-        foregroundColor:
-        Colors.white,
       ),
 
       body: _buildBody(),

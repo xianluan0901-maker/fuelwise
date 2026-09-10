@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
+import 'package:flutter/services.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -177,6 +178,9 @@ class _ResetPasswordScreenState
           TextField(
             controller: passwordController,
             obscureText: obscurePassword,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(20),
+            ],
             decoration: InputDecoration(
               labelText: 'New Password',
               border: const OutlineInputBorder(),
@@ -200,6 +204,9 @@ class _ResetPasswordScreenState
           TextField(
             controller: confirmPasswordController,
             obscureText: obscureConfirmPassword,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(20),
+            ],
             decoration: InputDecoration(
               labelText: 'Confirm Password',
               border: const OutlineInputBorder(),
