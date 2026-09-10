@@ -46,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
   bool _obscurePassword = true;
   String? passwordError;
+  String? emailError;
 
   @override
   Widget build(BuildContext context) {
@@ -62,11 +63,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
             TextField(
               controller: emailController,
-              decoration: const InputDecoration(
-                labelText: "Email",
-                border: OutlineInputBorder(),
-              ),
               keyboardType: TextInputType.emailAddress,
+
+              inputFormatters: [
+                MaxLengthInputFormatter(
+                  maxLength: 100,
+                  onExceeded: (isExceeded) {
+                    setState(() {
+                      emailError = isExceeded
+                          ? 'Email cannot exceed 100 characters.'
+                          : null;
+                    });
+                  },
+                ),
+              ],
+
+              decoration: InputDecoration(
+                labelText: "Email",
+                border: const OutlineInputBorder(),
+                errorText: emailError,
+              ),
             ),
 
             const SizedBox(height: 15),

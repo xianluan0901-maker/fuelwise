@@ -1026,11 +1026,12 @@ class _AIFuelAnalysisScreenState
         title: Text(
           _categoryTitle(),
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight:
+            FontWeight.bold,
           ),
         ),
-        backgroundColor: const Color(0xFF1687E8),
-        foregroundColor: Colors.white,
+
+
       ),
 
       body: _buildBody(),

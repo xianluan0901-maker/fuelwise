@@ -150,31 +150,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 15),
 
-// Malaysian Citizen
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.flag),
-                title: const Text("Malaysian Citizen"),
-                subtitle: Text(isMalaysian ? "Yes" : "No"),
-              ),
-            ),
 
-            if (isMalaysian) ...[
-              const SizedBox(height: 15),
 
-              // Malaysian IC Number
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.badge),
-                  title: const Text("Malaysian IC Number"),
-                  subtitle: Text(
-                    icNumber != null && icNumber!.isNotEmpty
-                        ? icNumber!
-                        : "No IC number",
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
