@@ -5,7 +5,7 @@ import '../../features/fuel_price/screens/home_screen.dart';
 import '../../features/user_account/screens/profile/profile_screen.dart';
 import 'package:fuelwisee/features/fuel_station/screens/station_list_screen.dart';
 import '../../features/payment/screens/payment_history_screen.dart';
-
+import '../../features/reward/screens/reward_home_screen.dart';
 
 
 class BottomNavBar extends StatefulWidget {
@@ -22,7 +22,8 @@ class _BottomNavBarState extends State<BottomNavBar> {
     const HomeScreen(),
     const StationListScreen(),
     const PaymentHistoryScreen(),
-    const Center(child: Text("Reward")),
+    //const Center(child: Text("Reward")),
+    const RewardHomeScreen(),
     const ProfileMainScreen(),
   ];
 

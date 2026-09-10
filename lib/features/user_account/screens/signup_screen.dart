@@ -1,6 +1,33 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
+
+class MaxLengthInputFormatter extends TextInputFormatter {
+  final int maxLength;
+  final void Function(bool isExceeded) onExceeded;
+
+  MaxLengthInputFormatter({
+    required this.maxLength,
+    required this.onExceeded,
+  });
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    if (newValue.text.length > maxLength) {
+      onExceeded(true);
+
+      return oldValue;
+    }
+
+    onExceeded(false);
+
+    return newValue;
+  }
+}
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -15,6 +42,11 @@ class _SignupScreenState extends State<SignupScreen> {
   final phoneNumController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  String? nameError;
+  String? emailError;
+  String? phoneError;
+  String? passwordError;
+  String? confirmPasswordError;
 
   @override
   void dispose() {
@@ -47,9 +79,25 @@ class _SignupScreenState extends State<SignupScreen> {
 
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r"[a-zA-Z\s]"),
+                  ),
+                  MaxLengthInputFormatter(
+                    maxLength: 50,
+                    onExceeded: (isExceeded) {
+                      setState(() {
+                        nameError = isExceeded
+                            ? 'Name cannot exceed 50 characters.'
+                            : null;
+                      });
+                    },
+                  ),
+                ],
+                decoration: InputDecoration(
                   labelText: "Full Name",
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  errorText: nameError,
                 ),
               ),
 
@@ -58,9 +106,22 @@ class _SignupScreenState extends State<SignupScreen> {
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  MaxLengthInputFormatter(
+                    maxLength: 100,
+                    onExceeded: (isExceeded) {
+                      setState(() {
+                        emailError = isExceeded
+                            ? 'Email cannot exceed 100 characters.'
+                            : null;
+                      });
+                    },
+                  ),
+                ],
+                decoration: InputDecoration(
                   labelText: "Email",
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  errorText: emailError,
                 ),
               ),
 
@@ -69,20 +130,46 @@ class _SignupScreenState extends State<SignupScreen> {
               TextField(
                 controller: phoneNumController,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxLengthInputFormatter(
+                    maxLength: 11,
+                    onExceeded: (isExceeded) {
+                      setState(() {
+                        phoneError = isExceeded
+                            ? 'Phone number cannot exceed 11 digits.'
+                            : null;
+                      });
+                    },
+                  ),
+                ],
+                decoration: InputDecoration(
                   labelText: "Phone Number",
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  errorText: phoneError,
                 ),
               ),
-
               const SizedBox(height: 15),
 
               TextField(
                 controller: passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  MaxLengthInputFormatter(
+                    maxLength: 20,
+                    onExceeded: (isExceeded) {
+                      setState(() {
+                        passwordError = isExceeded
+                            ? 'Password cannot exceed 20 characters.'
+                            : null;
+                      });
+                    },
+                  ),
+                ],
+                decoration: InputDecoration(
                   labelText: "Password",
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  errorText: passwordError,
                 ),
               ),
 
@@ -91,9 +178,22 @@ class _SignupScreenState extends State<SignupScreen> {
               TextField(
                 controller: confirmPasswordController,
                 obscureText: true,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  MaxLengthInputFormatter(
+                    maxLength: 20,
+                    onExceeded: (isExceeded) {
+                      setState(() {
+                        confirmPasswordError = isExceeded
+                            ? 'Confirm password cannot exceed 20 characters.'
+                            : null;
+                      });
+                    },
+                  ),
+                ],
+                decoration: InputDecoration(
                   labelText: "Confirm Password",
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  errorText: confirmPasswordError,
                 ),
               ),
 
@@ -217,6 +317,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
       // Check whether account was created
       if (response.user != null) {
+        // Sign out immediately so the newly registered user
+        // must login manually.
+        await supabase.auth.signOut();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -224,11 +328,12 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           );
 
-          Navigator.pushReplacement(
+          Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
               builder: (context) => const LoginScreen(),
             ),
+                (route) => false,
           );
         }
       }

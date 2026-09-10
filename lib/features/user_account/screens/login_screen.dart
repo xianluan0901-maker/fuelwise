@@ -1,8 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../shared/widgets/bottom_nav_bar.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
+import 'package:flutter/services.dart';
+
+class MaxLengthInputFormatter extends TextInputFormatter {
+  final int maxLength;
+  final void Function(bool isExceeded) onExceeded;
+
+  MaxLengthInputFormatter({
+    required this.maxLength,
+    required this.onExceeded,
+  });
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    if (newValue.text.length > maxLength) {
+      onExceeded(true);
+
+      // Keep the old value, so the 21st character is NOT entered
+      return oldValue;
+    }
+
+    onExceeded(false);
+    return newValue;
+  }
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool isLoading = false;
   bool _obscurePassword = true;
+  String? passwordError;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
         title: const Text("Login"),
       ),
 
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -45,9 +74,25 @@ class _LoginScreenState extends State<LoginScreen> {
             TextField(
               controller: passwordController,
               obscureText: _obscurePassword,
+
+              inputFormatters: [
+                MaxLengthInputFormatter(
+                  maxLength: 20,
+                  onExceeded: (isExceeded) {
+                    setState(() {
+                      passwordError = isExceeded
+                          ? 'Password cannot exceed 20 characters.'
+                          : null;
+                    });
+                  },
+                ),
+              ],
+
               decoration: InputDecoration(
                 labelText: "Password",
                 border: const OutlineInputBorder(),
+                errorText: passwordError,
+
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscurePassword
@@ -135,41 +180,51 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> login() async {
+    if (isLoading) return;
+
     print("LOGIN BUTTON CLICKED");
+
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email and password.'),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       isLoading = true;
     });
 
     try {
-      final email = emailController.text.trim();
-      final password = passwordController.text;
-
-      if (email.isEmpty || password.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Please enter your email and password.',
-            ),
-          ),
-        );
-        return;
-      }
-
       final response =
       await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
-      if (response.user != null) {
+      print("LOGIN RESPONSE RECEIVED");
+      print("USER: ${response.user}");
+      print("SESSION: ${response.session}");
+
+      if (response.user != null && response.session != null) {
         print("LOGIN SUCCESS");
         print("USER ID: ${response.user!.id}");
         print("EMAIL: ${response.user!.email}");
+        print("NAVIGATING TO BOTTOM NAV");
 
-        // Do NOT navigate manually.
-        // AuthGate will detect the new session
-        // and show BottomNavBar automatically.
+        if (!mounted) return;
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const BottomNavBar(),
+          ),
+              (route) => false,
+        );
       }
     } on AuthException catch (e) {
       print("LOGIN FAILED: ${e.message}");

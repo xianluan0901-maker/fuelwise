@@ -94,7 +94,6 @@ class _AIFuelAnalysisScreenState
   // ===========================================================================
   // GET CATEGORY DATA
   // ===========================================================================
-
   Future<Map<String, dynamic>> _getCategoryData(
       String userId,
       ) async {
@@ -109,12 +108,13 @@ class _AIFuelAnalysisScreenState
         return _getDemoStationData();
 
       case 'brand':
-        return _getDemoBrandData();
+        return await _getRealBrandData(userId);
 
       default:
         return await _getRealSpendingData(userId);
     }
   }
+
 
   // ===========================================================================
   // REAL SPENDING DATA
@@ -303,13 +303,131 @@ class _AIFuelAnalysisScreenState
     };
   }
 
-  Map<String, dynamic> _getDemoBrandData() {
+  Future<Map<String, dynamic>> _getRealBrandData(
+      String userId,
+      ) async {
+    final transactions =
+    await _paymentService.getTransactionHistory(userId);
+
+    final now = DateTime.now();
+
+    final startOfCurrentMonth = DateTime(
+      now.year,
+      now.month,
+      1,
+    );
+
+    final startOfNextMonth = DateTime(
+      now.year,
+      now.month + 1,
+      1,
+    );
+
+    final currentMonthTransactions =
+    transactions.where((transaction) {
+      final date = transaction.createdAt;
+
+      return !date.isBefore(startOfCurrentMonth) &&
+          date.isBefore(startOfNextMonth);
+    }).toList();
+
+    // Count each petrol brand
+    final Map<String, int> brandCounts = {};
+
+    for (final transaction in currentMonthTransactions) {
+      final brand = _detectBrand(
+        transaction.stationName,
+      );
+
+      if (brand != 'Unknown') {
+        brandCounts[brand] =
+            (brandCounts[brand] ?? 0) + 1;
+      }
+    }
+
+    final totalRefuels = currentMonthTransactions.length;
+
+    // Calculate percentage for EVERY brand
+    final Map<String, double> brandPercentages = {};
+
+    for (final entry in brandCounts.entries) {
+      brandPercentages[entry.key] =
+      totalRefuels == 0
+          ? 0
+          : (entry.value / totalRefuels) * 100;
+    }
+
+    String mostUsedBrand = 'No data';
+
+    if (brandCounts.isNotEmpty) {
+      final highestCount = brandCounts.values.reduce(
+            (a, b) => a > b ? a : b,
+      );
+
+      final topBrands = brandCounts.entries
+          .where((entry) => entry.value == highestCount)
+          .map((entry) => entry.key)
+          .toList();
+
+      if (topBrands.length == 1) {
+        mostUsedBrand = topBrands.first;
+      } else {
+        mostUsedBrand = 'No single most used brand';
+      }
+    }
+
     return {
-      'most_used_brand': 'Shell',
-      'brand_refuels': 6,
-      'total_refuels': 8,
-      'percentage': 75,
+      'month':
+      '${_monthName(now.month)} ${now.year}',
+      'total_refuels': totalRefuels,
+      'brand_counts': brandCounts,
+      'brand_percentages': brandPercentages,
+      'most_used_brand': mostUsedBrand,
     };
+  }
+  String _detectBrand(String stationName) {
+    final name = stationName.toLowerCase();
+
+    if (name.contains('petronas')) {
+      return 'Petronas';
+    }
+
+    if (name.contains('shell')) {
+      return 'Shell';
+    }
+
+    if (name.contains('petron')) {
+      return 'Petron';
+    }
+
+    if (name.contains('caltex')) {
+      return 'Caltex';
+    }
+
+    if (name.contains('bhp')) {
+      return 'BHP';
+    }
+
+    return 'Unknown';
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    return months[month - 1];
   }
 
   // ===========================================================================

@@ -96,14 +96,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? NetworkImage(
                 '${profileImageUrl!}?t=${DateTime.now().millisecondsSinceEpoch}',
               )
-                  : null,
-              child: profileImageUrl == null ||
-                  profileImageUrl!.isEmpty
-                  ? const Icon(
-                Icons.person,
-                size: 60,
-              )
-                  : null,
+                  : const AssetImage(
+                'assets/images/default_image.jpg',
+              ) as ImageProvider,
             ),
 
             const SizedBox(height: 20),

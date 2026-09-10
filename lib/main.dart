@@ -12,9 +12,7 @@ Future<void> main() async {
   await Supabase.initialize(
     url: 'https://bqwvctzyijyfdefjrubj.supabase.co',
     publishableKey: 'sb_publishable_CabkXlDKHbbDH_rsTBL_nQ_JGsMugax',
-    authOptions: const FlutterAuthClientOptions(
-      authFlowType: AuthFlowType.pkce,
-    ),
+
   );
 
   runApp(const MainApp());
@@ -117,16 +115,24 @@ class _AuthGateState extends State<AuthGate> {
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
+        // ---------------------------------------------------------
+        // Password recovery
+        // ---------------------------------------------------------
         if (snapshot.hasData) {
-          final event = snapshot.data!.event;
+          final authState = snapshot.data!;
+          final event = authState.event;
 
           debugPrint('AUTH EVENT: $event');
           debugPrint(
-            'SESSION EXISTS: ${snapshot.data!.session != null}',
+            'SESSION EXISTS: ${authState.session != null}',
           );
 
           if (event == AuthChangeEvent.passwordRecovery) {
             debugPrint('PASSWORD RECOVERY DETECTED');
+            debugPrint('RECOVERY EVENT SESSION: ${authState.session}');
+            debugPrint(
+              'CURRENT SESSION: ${Supabase.instance.client.auth.currentSession}',
+            );
 
             isPasswordRecovery = true;
 
@@ -138,15 +144,17 @@ class _AuthGateState extends State<AuthGate> {
 
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (context) =>
-                    const ResetPasswordScreen(),
+                    builder: (context) => const ResetPasswordScreen(),
                   ),
-                      (route) => route.isFirst,
+                      (route) => false,
                 );
               });
             }
           }
 
+          // ---------------------------------------------------------
+          // User signed out
+          // ---------------------------------------------------------
           if (event == AuthChangeEvent.signedOut) {
             debugPrint('USER SIGNED OUT');
 
@@ -155,19 +163,27 @@ class _AuthGateState extends State<AuthGate> {
           }
         }
 
+        // ---------------------------------------------------------
+        // Password recovery screen
+        // ---------------------------------------------------------
         if (isPasswordRecovery) {
           return const ResetPasswordScreen();
         }
 
+        // ---------------------------------------------------------
+        // Check current Supabase session
+        // ---------------------------------------------------------
         final session =
-            snapshot.data?.session ??
-                Supabase.instance.client.auth.currentSession;
+            Supabase.instance.client.auth.currentSession;
 
         if (session != null) {
           debugPrint('SHOWING BOTTOM NAV');
           return const BottomNavBar();
         }
 
+        // ---------------------------------------------------------
+        // No session = Login
+        // ---------------------------------------------------------
         debugPrint('SHOWING LOGIN');
         return const LoginScreen();
       },

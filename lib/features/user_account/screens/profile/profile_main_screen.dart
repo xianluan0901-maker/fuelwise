@@ -11,15 +11,40 @@ class ProfileMainScreen extends StatelessWidget {
 
   Future<void> logout(BuildContext context) async {
     try {
+      debugPrint('LOGOUT BUTTON CLICKED');
+
       await Supabase.instance.client.auth.signOut();
+
+      debugPrint('LOGOUT SUCCESS');
+
+      if (!context.mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const LoginScreen(),
+        ),
+            (route) => false,
+      );
     } on AuthException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-          ),
-        );
-      }
+      debugPrint('LOGOUT FAILED: ${e.message}');
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+        ),
+      );
+    } catch (e) {
+      debugPrint('LOGOUT ERROR: $e');
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Logout failed: $e'),
+        ),
+      );
     }
   }
 
@@ -31,7 +56,7 @@ class ProfileMainScreen extends StatelessWidget {
       ),
 
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
         child: Column(
           children: [
 
@@ -127,7 +152,7 @@ class ProfileMainScreen extends StatelessWidget {
                 ),
 
                 subtitle: const Text(
-                  'View your fuel usage and insights',
+                  'Analyze your fuel usage and receive personalized AI insights',
                 ),
 
                 trailing: const Icon(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -16,6 +17,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController nameController;
   late final TextEditingController emailController;
   late final TextEditingController phoneController;
+  bool nameTooLong = false;
+  bool emailTooLong = false;
+  bool phoneTooLong = false;
 
   bool isSaving = false;
   File? selectedImage;
@@ -83,6 +87,42 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     nameController = TextEditingController();
     emailController = TextEditingController();
     phoneController = TextEditingController();
+
+    nameController.addListener(() {
+      if (nameController.text.length >= 50) {
+        setState(() {
+          nameTooLong = true;
+        });
+      } else {
+        setState(() {
+          nameTooLong = false;
+        });
+      }
+    });
+
+    emailController.addListener(() {
+      if (emailController.text.length >= 100) {
+        setState(() {
+          emailTooLong = true;
+        });
+      } else {
+        setState(() {
+          emailTooLong = false;
+        });
+      }
+    });
+
+    phoneController.addListener(() {
+      if (phoneController.text.length >= 11) {
+        setState(() {
+          phoneTooLong = true;
+        });
+      } else {
+        setState(() {
+          phoneTooLong = false;
+        });
+      }
+    });
 
     loadProfile();
   }
@@ -291,10 +331,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               // Full Name
               TextFormField(
                 controller: nameController,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(50),
+                ],
+                decoration: InputDecoration(
                   labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.person),
+                  border: const OutlineInputBorder(),
+                  errorText: nameTooLong
+                      ? 'Name cannot exceed 50 characters.'
+                      : null,
                 ),
                 validator: (value) {
                   final name = value?.trim() ?? '';
@@ -317,10 +363,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               TextFormField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(100),
+                ],
+                decoration: InputDecoration(
                   labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.email),
+                  border: const OutlineInputBorder(),
+                  errorText: emailTooLong
+                      ? 'Email cannot exceed 100 characters.'
+                      : null,
                 ),
                 validator: (value) {
                   final email = value?.trim() ?? '';
@@ -347,11 +399,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                decoration: InputDecoration(
                   labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone),
+                  prefixIcon: const Icon(Icons.phone),
                   hintText: 'e.g. 0123456789',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  errorText: phoneTooLong
+                      ? 'Phone number cannot exceed 11 digits.'
+                      : null,
                 ),
                 validator: (value) {
                   final phone = value?.trim() ?? '';
