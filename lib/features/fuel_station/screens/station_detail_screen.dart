@@ -1,10 +1,12 @@
 // features/fuel_station/screens/station_detail_screen.dart
 
 import 'package:flutter/material.dart';
-
 import '../models/fuel_station_model.dart';
 import '../services/fuel_station_service.dart';
-import '../../payment/screens/payment_page.dart';  // ✅ 已经有这个 import 了
+import '../../payment/screens/payment_page.dart';
+import 'favourite_list_screen.dart';
+import '../models/favourite_model.dart';
+import '../services/favourite_service.dart';
 
 class StationDetailScreen extends StatefulWidget {
   final FuelStation station;
@@ -28,6 +30,7 @@ class _StationDetailScreenState
   bool isLoading = true;
 
   bool isFavourite = false;
+  final FavoriteService _favService = FavoriteService();
 
   @override
   void initState() {
@@ -47,8 +50,12 @@ class _StationDetailScreenState
       );
 
       final photos = result['photos'] as List<dynamic>?;
+
       if (photos != null && photos.isNotEmpty) {
-        print('✅ PHOTO NAME: ${photos.first['name']}');
+        final photoName = photos.first['name'].toString();
+        final fullUrl = widget.service.getPhotoUrl(photoName);
+
+        print('🖼️ COMPLETE PHOTO URL: $fullUrl');
       } else {
         print('❌ NO PHOTO FOUND');
       }
@@ -119,16 +126,11 @@ class _StationDetailScreenState
                   : null,
             ),
             onPressed: () {
-              setState(() {
-                isFavourite = !isFavourite;
-              });
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isFavourite
-                        ? 'Saved to favourites'
-                        : 'Removed from favourites',
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => FavoriteListScreen(
+                    service: widget.service,
                   ),
                 ),
               );
@@ -146,6 +148,10 @@ class _StationDetailScreenState
           crossAxisAlignment:
           CrossAxisAlignment.start,
           children: [
+            // ==================================================
+            // STATION PHOTO
+            // ==================================================
+
             if (photos != null &&
                 photos.isNotEmpty)
               SizedBox(
@@ -156,6 +162,26 @@ class _StationDetailScreenState
                     photos.first['name'].toString(),
                   ),
                   fit: BoxFit.cover,
+                  loadingBuilder:
+                      (context, child, loadingProgress) {
+                    if (loadingProgress == null) {
+                      return child;
+                    }
+
+                    return Center(
+                      child:
+                      CircularProgressIndicator(
+                        value: loadingProgress
+                            .expectedTotalBytes !=
+                            null
+                            ? loadingProgress
+                            .cumulativeBytesLoaded /
+                            loadingProgress
+                                .expectedTotalBytes!
+                            : null,
+                      ),
+                    );
+                  },
                   errorBuilder:
                       (context, error, stackTrace) {
                     return _buildPhotoFallback();
@@ -164,6 +190,10 @@ class _StationDetailScreenState
               )
             else
               _buildPhotoFallback(),
+
+            // ==================================================
+            // STATION INFORMATION
+            // ==================================================
 
             Padding(
               padding: const EdgeInsets.all(20),
@@ -204,6 +234,7 @@ class _StationDetailScreenState
                   if (phone != null &&
                       phone.isNotEmpty) ...[
                     const SizedBox(height: 18),
+
                     Row(
                       crossAxisAlignment:
                       CrossAxisAlignment.center,
@@ -216,7 +247,8 @@ class _StationDetailScreenState
                         Expanded(
                           child: Text(
                             phone,
-                            style: const TextStyle(
+                            style:
+                            const TextStyle(
                               fontSize: 15,
                             ),
                           ),
@@ -226,6 +258,10 @@ class _StationDetailScreenState
                   ],
 
                   const SizedBox(height: 28),
+
+                  // ==================================================
+                  // OPENING HOURS
+                  // ==================================================
 
                   const Text(
                     'Opening Hours',
@@ -259,9 +295,9 @@ class _StationDetailScreenState
 
                   const SizedBox(height: 30),
 
-                  // ============================================
+                  // ==================================================
                   // FAVOURITE BUTTON
-                  // ============================================
+                  // ==================================================
 
                   SizedBox(
                     width: double.infinity,
@@ -276,20 +312,77 @@ class _StationDetailScreenState
                             ? 'Saved'
                             : 'Save Favourite',
                       ),
-                      onPressed: () {
-                        setState(() {
-                          isFavourite =
-                          !isFavourite;
-                        });
+                      onPressed: () async {
+                        try {
+                          final alreadyFavorite =
+                          await _favService
+                              .isFavorite(
+                            widget.station.placeId,
+                          );
+
+                          if (alreadyFavorite) {
+                            if (!mounted) return;
+
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Already in favourites',
+                                ),
+                              ),
+                            );
+
+                            return;
+                          }
+
+                          final favorite =
+                          Favorite.fromStation(
+                            widget.station,
+                          );
+
+                          await _favService
+                              .addFavorite(
+                            favorite,
+                          );
+
+                          if (!mounted) return;
+
+                          setState(() {
+                            isFavourite = true;
+                          });
+
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Saved to favourites',
+                              ),
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Failed to save favourite: $e',
+                              ),
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
 
                   const SizedBox(height: 12),
 
-                  // ============================================
-                  // PAYMENT BUTTON ✅ 已经连接支付页面
-                  // ============================================
+                  // ==================================================
+                  // PAYMENT BUTTON
+                  // ==================================================
 
                   SizedBox(
                     width: double.infinity,
@@ -306,23 +399,32 @@ class _StationDetailScreenState
                         ),
                       ),
                       onPressed: () {
-                        // ✅ 跳转到支付页面
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => PaymentPage(
-                              placeId: widget.station.placeId,
-                              stationName: name,
-                              stationAddress: address,
-                            ),
+                            builder: (context) =>
+                                PaymentPage(
+                                  placeId:
+                                  widget.station.placeId,
+                                  stationName: name,
+                                  stationAddress:
+                                  address,
+                                ),
                           ),
                         );
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1687E8),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      style:
+                      ElevatedButton.styleFrom(
+                        backgroundColor:
+                        const Color(0xFF1687E8),
+                        foregroundColor:
+                        Colors.white,
+                        shape:
+                        RoundedRectangleBorder(
+                          borderRadius:
+                          BorderRadius.circular(
+                            12,
+                          ),
                         ),
                       ),
                     ),

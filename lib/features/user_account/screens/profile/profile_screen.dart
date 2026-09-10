@@ -14,6 +14,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String email = "Loading...";
   String phone = "Loading...";
   String? profileImageUrl;
+  bool isMalaysian = true;
+  String? icNumber;
 
   @override
   void initState() {
@@ -33,7 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final profile = await supabase
           .from('user')
-          .select('full_name, phone_number, profile_image_url')
+          .select('full_name, phone_number, profile_image_url, is_malaysian, ic_number',)
           .eq('user_id', currentUser.id)
           .single();
 
@@ -43,6 +45,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           email = currentUser.email ?? "No email";
           phone = profile['phone_number'] ?? "No phone";
           profileImageUrl = profile['profile_image_url'];
+          isMalaysian = profile['is_malaysian'] ?? true;
+          icNumber = profile['ic_number'];
         });
       }
     } catch (e) {
@@ -144,6 +148,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: Text(phone),
               ),
             ),
+            const SizedBox(height: 15),
+
+// Malaysian Citizen
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.flag),
+                title: const Text("Malaysian Citizen"),
+                subtitle: Text(isMalaysian ? "Yes" : "No"),
+              ),
+            ),
+
+            if (isMalaysian) ...[
+              const SizedBox(height: 15),
+
+              // Malaysian IC Number
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.badge),
+                  title: const Text("Malaysian IC Number"),
+                  subtitle: Text(
+                    icNumber != null && icNumber!.isNotEmpty
+                        ? icNumber!
+                        : "No IC number",
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

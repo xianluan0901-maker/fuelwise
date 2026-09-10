@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/fuel_station_model.dart';
 import '../services/fuel_station_service.dart';
 import 'station_detail_screen.dart';
+import 'favourite_list_screen.dart';
 
 class StationListScreen extends StatefulWidget {
   final bool selectionMode;
@@ -97,19 +98,6 @@ class _StationListScreenState extends State<StationListScreen> {
       ..setBackgroundColor(
         const Color(0x00000000),
       )
-
-    // ========================================================
-    // IMPORTANT
-    //
-    // JavaScript marker click
-    //        ↓
-    // StationChannel
-    //        ↓
-    // Flutter
-    //        ↓
-    // StationDetailScreen
-    // ========================================================
-
       ..addJavaScriptChannel(
         'StationChannel',
         onMessageReceived: (JavaScriptMessage message) {
@@ -122,7 +110,6 @@ class _StationListScreenState extends State<StationListScreen> {
           _openStationDetail(placeId);
         },
       )
-
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
@@ -130,7 +117,6 @@ class _StationListScreenState extends State<StationListScreen> {
               'Google Maps loaded',
             );
           },
-
           onWebResourceError:
               (WebResourceError error) {
             debugPrint(
@@ -231,6 +217,69 @@ class _StationListScreenState extends State<StationListScreen> {
   }
 
   // ============================================================
+  // MALAYSIA VALIDATION
+  //
+  // Only allow fuel stations located in Malaysia.
+  // ============================================================
+
+  bool _isMalaysianStation(
+      FuelStation station,
+      ) {
+    final address =
+    station.stationAddress.toLowerCase();
+
+    // ----------------------------------------------------------
+    // Malaysia country name
+    // ----------------------------------------------------------
+
+    if (address.contains('malaysia')) {
+      return true;
+    }
+
+    // ----------------------------------------------------------
+    // Malaysian states / federal territories
+    // ----------------------------------------------------------
+
+    const malaysiaLocations = [
+      'kuala lumpur',
+      'putrajaya',
+      'labuan',
+      'selangor',
+      'penang',
+      'pulau pinang',
+      'perak',
+      'kedah',
+      'perlis',
+      'kelantan',
+      'terengganu',
+      'pahang',
+      'johor',
+      'melaka',
+      'malacca',
+      'negeri sembilan',
+      'sabah',
+      'sarawak',
+    ];
+
+    return malaysiaLocations.any(
+          (location) =>
+          address.contains(location),
+    );
+  }
+
+  // ============================================================
+  // FILTER MALAYSIA STATIONS
+  // ============================================================
+
+  List<FuelStation> _filterMalaysiaStations(
+      List<FuelStation> stations,
+      ) {
+    return stations
+        .where(_isMalaysianStation)
+        .toList();
+  }
+
+  // ============================================================
   // LOAD REAL NEARBY STATIONS
   //
   // Google Places API
@@ -257,13 +306,24 @@ class _StationListScreenState extends State<StationListScreen> {
         radius: _nearbyRadius,
       );
 
+      // ========================================================
+      // IMPORTANT
+      //
+      // Only keep stations located in Malaysia.
+      // ========================================================
+
+      final malaysiaStations =
+      _filterMalaysiaStations(stations);
+
       if (!mounted) return;
 
       setState(() {
-        _allStations = stations;
+        _allStations = malaysiaStations;
 
         _displayedStations =
-            _applyBrandFilter(stations);
+            _applyBrandFilter(
+              malaysiaStations,
+            );
 
         isLoading = false;
       });
@@ -271,8 +331,8 @@ class _StationListScreenState extends State<StationListScreen> {
       _updateMap();
 
       debugPrint(
-        'REAL nearby stations: '
-            '${stations.length}',
+        'REAL nearby Malaysian stations: '
+            '${malaysiaStations.length}',
       );
     } catch (e) {
       debugPrint(
@@ -296,7 +356,9 @@ class _StationListScreenState extends State<StationListScreen> {
   // Real station name / address
   // ============================================================
 
-  void _searchStations(String keyword) {
+  void _searchStations(
+      String keyword,
+      ) {
     _searchKeyword = keyword;
 
     _searchDebounce?.cancel();
@@ -340,6 +402,10 @@ class _StationListScreenState extends State<StationListScreen> {
     );
   }
 
+  // ============================================================
+  // PERFORM SEARCH
+  // ============================================================
+
   Future<void> _performSearch(
       String query,
       ) async {
@@ -362,17 +428,30 @@ class _StationListScreenState extends State<StationListScreen> {
         currentPosition!.longitude,
       );
 
+      // ========================================================
+      // IMPORTANT
+      //
+      // Google may return stations outside Malaysia.
+      // Filter them BEFORE displaying them.
+      // ========================================================
+
+      final malaysiaResults =
+      _filterMalaysiaStations(results);
+
       if (!mounted) return;
 
       // --------------------------------------------------------
-      // Apply selected brand filter if user already selected one
+      // Apply selected brand filter
       // --------------------------------------------------------
 
       final filtered =
-      _applyBrandFilter(results);
+      _applyBrandFilter(
+        malaysiaResults,
+      );
 
       setState(() {
-        _allStations = results;
+        _allStations =
+            malaysiaResults;
 
         _displayedStations =
             filtered;
@@ -383,8 +462,8 @@ class _StationListScreenState extends State<StationListScreen> {
       _updateMap();
 
       debugPrint(
-        'REAL search results: '
-            '${results.length} '
+        'REAL Malaysian search results: '
+            '${malaysiaResults.length} '
             'for "$query"',
       );
     } catch (e) {
@@ -496,8 +575,7 @@ class _StationListScreenState extends State<StationListScreen> {
     if (selectedStation == null) {
       try {
         selectedStation =
-            _displayedStations
-                .firstWhere(
+            _displayedStations.firstWhere(
                   (station) =>
               station.placeId ==
                   placeId,
@@ -516,7 +594,11 @@ class _StationListScreenState extends State<StationListScreen> {
     }
 
     if (widget.selectionMode) {
-      Navigator.pop<FuelStation>(context, selectedStation);
+      Navigator.pop<FuelStation>(
+        context,
+        selectedStation,
+      );
+
       return;
     }
 
@@ -525,8 +607,10 @@ class _StationListScreenState extends State<StationListScreen> {
       MaterialPageRoute(
         builder: (_) =>
             StationDetailScreen(
-              station: selectedStation!,
-              service: _stationService,
+              station:
+              selectedStation!,
+              service:
+              _stationService,
             ),
       ),
     );
@@ -551,39 +635,26 @@ class _StationListScreenState extends State<StationListScreen> {
     final lng =
         currentPosition!.longitude;
 
-    // ----------------------------------------------------------
-    // IMPORTANT
-    //
-    // jsonEncode safely converts Dart data
-    // into valid JavaScript values.
-    //
-    // This prevents:
-    //
-    // Uncaught SyntaxError:
-    // Invalid or unexpected token
-    // ----------------------------------------------------------
-
     final searchKeywordJs =
     jsonEncode(
       _searchKeyword,
     );
-
-    // ----------------------------------------------------------
-    // Convert REAL Google Places data
-    // into JavaScript
-    // ----------------------------------------------------------
 
     final stationsJson =
     _displayedStations.map(
           (station) {
         return {
           'id': station.placeId,
-          'name': station.stationName,
+          'name':
+          station.stationName,
           'address':
           station.stationAddress,
-          'brand': station.brand,
-          'lat': station.latitude,
-          'lng': station.longitude,
+          'brand':
+          station.brand,
+          'lat':
+          station.latitude,
+          'lng':
+          station.longitude,
         };
       },
     ).toList();
@@ -592,12 +663,6 @@ class _StationListScreenState extends State<StationListScreen> {
     jsonEncode(
       stationsJson,
     );
-
-    // ----------------------------------------------------------
-    // Google Maps Demo Key
-    //
-    // Stored in FuelStationService
-    // ----------------------------------------------------------
 
     final apiKey =
         FuelStationService.apiKey;
@@ -727,10 +792,6 @@ function initMap() {
   stations.forEach(
     function(station) {
 
-      // ------------------------------------------------------
-      // Make sure coordinate is valid
-      // ------------------------------------------------------
-
       if (
         !station.lat ||
         !station.lng
@@ -738,10 +799,6 @@ function initMap() {
         return;
       }
 
-
-      // ------------------------------------------------------
-      // Station marker
-      // ------------------------------------------------------
 
       const marker =
         new google.maps.Marker({
@@ -763,18 +820,6 @@ function initMap() {
 
         });
 
-
-      // ------------------------------------------------------
-      // Marker click
-      //
-      // JavaScript
-      //       ↓
-      // StationChannel
-      //       ↓
-      // Flutter
-      //       ↓
-      // StationDetailScreen
-      // ------------------------------------------------------
 
       marker.addListener(
         'click',
@@ -811,11 +856,6 @@ function initMap() {
     stations.length > 0
   ) {
 
-    // --------------------------------------------------------
-    // ONE SEARCH RESULT
-    // Move directly to station
-    // --------------------------------------------------------
-
     if (
       stations.length === 1
     ) {
@@ -837,11 +877,6 @@ function initMap() {
       map.setZoom(16);
 
     }
-
-    // --------------------------------------------------------
-    // MULTIPLE SEARCH RESULTS
-    // Show all results
-    // --------------------------------------------------------
 
     else {
 
@@ -880,7 +915,7 @@ function initMap() {
 
 
   console.log(
-    'Map initialized. Real stations: ' +
+    'Map initialized. Real Malaysian stations: ' +
     stations.length
   );
 
@@ -888,10 +923,6 @@ function initMap() {
 
 </script>
 
-
-<!-- ========================================================
-     GOOGLE MAPS JAVASCRIPT API
-     ======================================================== -->
 
 <script
   src="https://maps.googleapis.com/maps/api/js?key=$apiKey&loading=async&callback=initMap"
@@ -931,7 +962,6 @@ function initMap() {
       BuildContext context,
       ) {
     return Scaffold(
-
       backgroundColor:
       const Color(0xFFF5F7FA),
 
@@ -941,16 +971,37 @@ function initMap() {
 
       appBar: AppBar(
         title: Text(
-          widget.selectionMode ? 'Choose a station' : 'Fuel Stations',
+          widget.selectionMode
+            ? 'Choose a station'
+            : 'Fuel Stations',
+          style: const TextStyle(
+            color: Color(0xFF153B60),
+            fontWeight: FontWeight.bold
+          ),
         ),
+        backgroundColor:const Color(0xFFE1F2FF),
+
+        elevation: 0,
+
+        centerTitle: true,
+
         actions: [
           IconButton(
-            icon: const Icon(Icons.favorite),
+            icon: const Icon(
+              Icons.favorite,
+              color:
+              Color(0xFF1687E8),
+            ),
+
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Favorites coming soon!'),
-                  duration: Duration(seconds: 1),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      FavoriteListScreen(
+                        service:
+                        _stationService,
+                      ),
                 ),
               );
             },
@@ -962,184 +1013,46 @@ function initMap() {
       // BODY
       // ========================================================
 
-      body: Stack(
-
+      body: Column(
         children: [
-
-          // ====================================================
-          // GOOGLE MAP
-          // ====================================================
-
-          WebViewWidget(
-            controller:
-            _webViewController,
-          ),
-
 
           // ====================================================
           // SEARCH + BRAND FILTER
           // ====================================================
 
-          Positioned(
+          Container(
+            color:
+            const Color(0xFFE1F2FF),
 
-            top: 0,
+            padding:
+            const EdgeInsets.fromLTRB(
+              16,
+              10,
+              16,
+              12,
+            ),
 
-            left: 0,
+            child: Row(
+              children: [
 
-            right: 0,
+                // ==============================================
+                // SEARCH BAR
+                // ==============================================
 
-            child: Padding(
-
-              padding:
-              const EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-              ),
-
-              child: Row(
-
-                children: [
-
-                  // ==================================================
-                  // SEARCH BAR
-                  // ==================================================
-
-                  Expanded(
-
-                    child: Container(
-
-                      height: 50,
-
-                      padding:
-                      const EdgeInsets
-                          .symmetric(
-                        horizontal: 6,
-                      ),
-
-                      decoration:
-                      BoxDecoration(
-
-                        color:
-                        Colors.white,
-
-                        borderRadius:
-                        BorderRadius
-                            .circular(
-                          25,
-                        ),
-
-                        boxShadow: [
-
-                          BoxShadow(
-
-                            color:
-                            Colors.black
-                                .withAlpha(
-                              26,
-                            ),
-
-                            blurRadius: 10,
-
-                            offset:
-                            const Offset(
-                              0,
-                              4,
-                            ),
-
-                          ),
-
-                        ],
-
-                      ),
-
-                      child: TextField(
-
-                        decoration:
-                        InputDecoration(
-
-                          prefixIcon:
-                          const Icon(
-                            Icons.search,
-                            color:
-                            Colors.grey,
-                          ),
-
-                          hintText:
-                          'Find a station',
-
-                          hintStyle:
-                          const TextStyle(
-                            color:
-                            Colors.grey,
-                          ),
-
-                          border:
-                          InputBorder.none,
-
-                          contentPadding:
-                          const EdgeInsets
-                              .symmetric(
-                            vertical: 14,
-                          ),
-
-                          suffixIcon:
-                          _searchKeyword
-                              .isNotEmpty
-                              ? IconButton(
-
-                            icon:
-                            const Icon(
-                              Icons.clear,
-                              color:
-                              Colors.grey,
-                              size: 20,
-                            ),
-
-                            onPressed:
-                            _clearFilters,
-
-                          )
-                              : null,
-
-                        ),
-
-                        onChanged:
-                        _searchStations,
-
-                      ),
-
-                    ),
-
-                  ),
-
-
-                  const SizedBox(
-                    width: 12,
-                  ),
-
-
-                  // ==================================================
-                  // BRAND FILTER
-                  // ==================================================
-
-                  Container(
-
+                Expanded(
+                  child: Container(
                     height: 50,
 
                     padding:
                     const EdgeInsets
                         .symmetric(
-                      horizontal: 12,
+                      horizontal: 6,
                     ),
 
                     decoration:
                     BoxDecoration(
-
                       color:
-                      const Color(
-                        0xFF1687E8,
-                      ),
+                      Colors.white,
 
                       borderRadius:
                       BorderRadius
@@ -1148,426 +1061,598 @@ function initMap() {
                       ),
 
                       boxShadow: [
-
                         BoxShadow(
-
                           color:
-                          const Color(
-                            0xFF1687E8,
-                          ).withAlpha(
-                            102,
+                          Colors.black
+                              .withAlpha(
+                            26,
                           ),
 
-                          blurRadius: 8,
+                          blurRadius: 10,
 
                           offset:
                           const Offset(
                             0,
                             4,
                           ),
-
                         ),
-
                       ],
-
                     ),
 
-                    child:
-                    DropdownButtonHideUnderline(
-
-                      child:
-                      DropdownButton<String?>(
-
-                        value:
-                        _selectedBrand,
-
-                        icon:
+                    child: TextField(
+                      decoration:
+                      InputDecoration(
+                        prefixIcon:
                         const Icon(
-                          Icons
-                              .arrow_drop_down,
+                          Icons.search,
                           color:
-                          Colors.white,
+                          Colors.grey,
                         ),
 
-                        dropdownColor:
+                        hintText:
+                        'Find a station',
+
+                        hintStyle:
+                        const TextStyle(
+                          color:
+                          Colors.grey,
+                        ),
+
+                        border:
+                        InputBorder.none,
+
+                        contentPadding:
+                        const EdgeInsets
+                            .symmetric(
+                          vertical: 14,
+                        ),
+
+                        suffixIcon:
+                        _searchKeyword
+                            .isNotEmpty
+                            ? IconButton(
+                          icon:
+                          const Icon(
+                            Icons.clear,
+                            color:
+                            Colors.grey,
+                            size:
+                            20,
+                          ),
+
+                          onPressed:
+                          _clearFilters,
+                        )
+                            : null,
+                      ),
+
+                      onChanged:
+                      _searchStations,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 12,
+                ),
+
+                // ==============================================
+                // BRAND FILTER
+                // ==============================================
+
+                Container(
+                  height: 50,
+
+                  padding:
+                  const EdgeInsets
+                      .symmetric(
+                    horizontal: 12,
+                  ),
+
+                  decoration:
+                  BoxDecoration(
+                    color:
+                    const Color(
+                      0xFF1687E8,
+                    ),
+
+                    borderRadius:
+                    BorderRadius
+                        .circular(
+                      25,
+                    ),
+
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                        const Color(
+                          0xFF1687E8,
+                        ).withAlpha(
+                          102,
+                        ),
+
+                        blurRadius: 8,
+
+                        offset:
+                        const Offset(
+                          0,
+                          4,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  child:
+                  DropdownButtonHideUnderline(
+                    child:
+                    DropdownButton<String?>(
+                      value:
+                      _selectedBrand,
+
+                      icon:
+                      const Icon(
+                        Icons
+                            .arrow_drop_down,
+                        color:
+                        Colors.white,
+                      ),
+
+                      dropdownColor:
+                      Colors.white,
+
+                      hint:
+                      const Text(
+                        'All',
+                        style:
+                        TextStyle(
+                          color:
+                          Colors.white,
+
+                          fontWeight:
+                          FontWeight.bold,
+                        ),
+                      ),
+
+                      items: const [
+                        DropdownMenuItem<
+                            String?>(
+                          value: null,
+                          child:
+                          Text(
+                            'All',
+                          ),
+                        ),
+
+                        DropdownMenuItem<
+                            String?>(
+                          value:
+                          'Petronas',
+                          child:
+                          Text(
+                            'Petronas',
+                          ),
+                        ),
+
+                        DropdownMenuItem<
+                            String?>(
+                          value:
+                          'Shell',
+                          child:
+                          Text(
+                            'Shell',
+                          ),
+                        ),
+
+                        DropdownMenuItem<
+                            String?>(
+                          value:
+                          'Petron',
+                          child:
+                          Text(
+                            'Petron',
+                          ),
+                        ),
+
+                        DropdownMenuItem<
+                            String?>(
+                          value:
+                          'Caltex',
+                          child:
+                          Text(
+                            'Caltex',
+                          ),
+                        ),
+
+                        DropdownMenuItem<
+                            String?>(
+                          value:
+                          'BHP',
+                          child:
+                          Text(
+                            'BHP',
+                          ),
+                        ),
+                      ],
+
+                      onChanged:
+                      _filterByBrand,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ====================================================
+          // MAP
+          // ====================================================
+
+          Expanded(
+            child: Stack(
+              children: [
+
+                WebViewWidget(
+                  controller:
+                  _webViewController,
+                ),
+
+                // ==============================================
+                // LOADING
+                // ==============================================
+
+                if (isLoading)
+                  Container(
+                    color: Colors.white
+                        .withAlpha(170),
+
+                    child:
+                    const Center(
+                      child: Column(
+                        mainAxisSize:
+                        MainAxisSize.min,
+
+                        children: [
+                          CircularProgressIndicator(),
+
+                          SizedBox(
+                            height: 10,
+                          ),
+
+                          Text(
+                            'Loading fuel stations...',
+                            style:
+                            TextStyle(
+                              color:
+                              Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // ==============================================
+                // ERROR
+                // ==============================================
+
+                if (
+                errorMessage != null &&
+                    !isLoading
+                )
+                  Center(
+                    child:
+                    Container(
+                      margin:
+                      const EdgeInsets
+                          .all(
+                        30,
+                      ),
+
+                      padding:
+                      const EdgeInsets
+                          .all(
+                        20,
+                      ),
+
+                      decoration:
+                      BoxDecoration(
+                        color:
                         Colors.white,
 
-                        hint:
-                        const Text(
-                          'All',
+                        borderRadius:
+                        BorderRadius
+                            .circular(
+                          16,
+                        ),
+
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                            Colors.black
+                                .withAlpha(
+                              25,
+                            ),
+
+                            blurRadius:
+                            10,
+                          ),
+                        ],
+                      ),
+
+                      child:
+                      Column(
+                        mainAxisSize:
+                        MainAxisSize
+                            .min,
+
+                        children: [
+
+                          const Icon(
+                            Icons
+                                .error_outline,
+                            color:
+                            Colors.red,
+                            size: 48,
+                          ),
+
+                          const SizedBox(
+                            height: 10,
+                          ),
+
+                          Text(
+                            errorMessage!,
+                            textAlign:
+                            TextAlign
+                                .center,
+
+                            style:
+                            const TextStyle(
+                              color:
+                              Colors.grey,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 15,
+                          ),
+
+                          ElevatedButton(
+                            onPressed:
+                            _getCurrentLocation,
+
+                            child:
+                            const Text(
+                              'Retry',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // ==============================================
+                // RESULT COUNT
+                // ==============================================
+
+                if (
+                !isLoading &&
+                    errorMessage == null &&
+                    _displayedStations
+                        .isNotEmpty
+                )
+                  Positioned(
+                    bottom: 16,
+                    left: 20,
+                    right: 20,
+
+                    child:
+                    Container(
+                      padding:
+                      const EdgeInsets
+                          .symmetric(
+                        vertical: 8,
+                        horizontal: 16,
+                      ),
+
+                      decoration:
+                      BoxDecoration(
+                        color:
+                        Colors.white
+                            .withAlpha(
+                          230,
+                        ),
+
+                        borderRadius:
+                        BorderRadius
+                            .circular(
+                          20,
+                        ),
+
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                            Colors.black
+                                .withAlpha(
+                              13,
+                            ),
+
+                            blurRadius:
+                            8,
+
+                            offset:
+                            const Offset(
+                              0,
+                              2,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      child:
+                      Center(
+                        child:
+                        Text(
+                          '${_displayedStations.length} stations · ${_selectedBrand ?? "All Brands"}',
+
+                          style:
+                          const TextStyle(
+                            fontSize:
+                            12,
+
+                            color:
+                            Color(
+                              0xFF153B60,
+                            ),
+
+                            fontWeight:
+                            FontWeight
+                                .w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // ==============================================
+                // NO RESULTS
+                //
+                // NEW:
+                // Centered in the map area.
+                // ==============================================
+
+                if (
+                !isLoading &&
+                    errorMessage == null &&
+                    _displayedStations
+                        .isEmpty
+                )
+                  Center(
+                    child:
+                    Container(
+                      margin:
+                      const EdgeInsets
+                          .all(
+                        30,
+                      ),
+
+                      padding:
+                      const EdgeInsets
+                          .all(
+                        20,
+                      ),
+
+                      decoration:
+                      BoxDecoration(
+                        color:
+                        Colors.white,
+
+                        borderRadius:
+                        BorderRadius
+                            .circular(
+                          16,
+                        ),
+
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                            Colors.black
+                                .withAlpha(
+                              25,
+                            ),
+
+                            blurRadius:
+                            10,
+                          ),
+                        ],
+                      ),
+
+                      child:
+                      Center(
+                        child:
+                        _searchKeyword
+                            .trim()
+                            .isNotEmpty
+                            ? const Column(
+                          mainAxisSize:
+                          MainAxisSize
+                              .min,
+
+                          children: [
+                            Icon(
+                              Icons
+                                  .location_off,
+                              color:
+                              Colors.grey,
+                              size:
+                              30,
+                            ),
+
+                            SizedBox(
+                              height:
+                              8,
+                            ),
+
+                            Text(
+                              'No Malaysian fuel stations found.',
+                              textAlign:
+                              TextAlign
+                                  .center,
+
+                              style:
+                              TextStyle(
+                                color:
+                                Color(
+                                  0xFF153B60,
+                                ),
+
+                                fontWeight:
+                                FontWeight
+                                    .w600,
+                              ),
+                            ),
+
+                            SizedBox(
+                              height:
+                              4,
+                            ),
+
+                            Text(
+                              'Please search for a fuel station in Malaysia.',
+                              textAlign:
+                              TextAlign
+                                  .center,
+
+                              style:
+                              TextStyle(
+                                color:
+                                Colors.grey,
+
+                                fontSize:
+                                12,
+                              ),
+                            ),
+                          ],
+                        )
+                            : const Text(
+                          'No fuel stations found nearby.',
+                          textAlign:
+                          TextAlign
+                              .center,
 
                           style:
                           TextStyle(
                             color:
-                            Colors.white,
-                            fontWeight:
-                            FontWeight.bold,
+                            Colors.grey,
                           ),
-
                         ),
-
-                        items: const [
-
-                          DropdownMenuItem<
-                              String?>(
-                            value: null,
-                            child:
-                            Text(
-                              'All',
-                            ),
-                          ),
-
-                          DropdownMenuItem<
-                              String?>(
-                            value:
-                            'Petronas',
-                            child:
-                            Text(
-                              'Petronas',
-                            ),
-                          ),
-
-                          DropdownMenuItem<
-                              String?>(
-                            value:
-                            'Shell',
-                            child:
-                            Text(
-                              'Shell',
-                            ),
-                          ),
-
-                          DropdownMenuItem<
-                              String?>(
-                            value:
-                            'Petron',
-                            child:
-                            Text(
-                              'Petron',
-                            ),
-                          ),
-
-                          DropdownMenuItem<
-                              String?>(
-                            value:
-                            'Caltex',
-                            child:
-                            Text(
-                              'Caltex',
-                            ),
-                          ),
-
-                          DropdownMenuItem<
-                              String?>(
-                            value:
-                            'BHP',
-                            child:
-                            Text(
-                              'BHP',
-                            ),
-                          ),
-
-                        ],
-
-                        onChanged:
-                        _filterByBrand,
-
                       ),
-
                     ),
-
                   ),
-
-                ],
-
-              ),
-
+              ],
             ),
-
           ),
-
-
-          // ========================================================
-          // LOADING
-          // ========================================================
-
-          if (isLoading)
-
-            const Center(
-
-              child: Column(
-
-                mainAxisSize:
-                MainAxisSize.min,
-
-                children: [
-
-                  CircularProgressIndicator(),
-
-                  SizedBox(
-                    height: 10,
-                  ),
-
-                  Text(
-                    'Loading fuel stations...',
-                    style:
-                    TextStyle(
-                      color:
-                      Colors.grey,
-                    ),
-                  ),
-
-                ],
-
-              ),
-
-            ),
-
-
-          // ========================================================
-          // ERROR
-          // ========================================================
-
-          if (
-          errorMessage != null &&
-              !isLoading
-          )
-
-            Center(
-
-              child: Padding(
-
-                padding:
-                const EdgeInsets
-                    .all(
-                  30,
-                ),
-
-                child: Column(
-
-                  mainAxisSize:
-                  MainAxisSize.min,
-
-                  children: [
-
-                    const Icon(
-                      Icons
-                          .error_outline,
-                      color:
-                      Colors.red,
-                      size: 48,
-                    ),
-
-                    const SizedBox(
-                      height: 10,
-                    ),
-
-                    Text(
-                      errorMessage!,
-                      textAlign:
-                      TextAlign.center,
-                      style:
-                      const TextStyle(
-                        color:
-                        Colors.grey,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 15,
-                    ),
-
-                    ElevatedButton(
-
-                      onPressed:
-                      _getCurrentLocation,
-
-                      child:
-                      const Text(
-                        'Retry',
-                      ),
-
-                    ),
-
-                  ],
-
-                ),
-
-              ),
-
-            ),
-
-
-          // ========================================================
-          // RESULT COUNT
-          // ========================================================
-
-          if (
-          !isLoading &&
-              errorMessage == null &&
-              _displayedStations
-                  .isNotEmpty
-          )
-
-            Positioned(
-
-              bottom: 20,
-
-              left: 20,
-
-              right: 20,
-
-              child: Container(
-
-                padding:
-                const EdgeInsets
-                    .symmetric(
-                  vertical: 8,
-                  horizontal: 16,
-                ),
-
-                decoration:
-                BoxDecoration(
-
-                  color:
-                  Colors.white
-                      .withAlpha(
-                    230,
-                  ),
-
-                  borderRadius:
-                  BorderRadius
-                      .circular(
-                    20,
-                  ),
-
-                  boxShadow: [
-
-                    BoxShadow(
-
-                      color:
-                      Colors.black
-                          .withAlpha(
-                        13,
-                      ),
-
-                      blurRadius: 8,
-
-                      offset:
-                      const Offset(
-                        0,
-                        2,
-                      ),
-
-                    ),
-
-                  ],
-
-                ),
-
-                child: Center(
-
-                  child: Text(
-
-                    '${_displayedStations.length} stations · ${_selectedBrand ?? "All Brands"}',
-
-                    style:
-                    const TextStyle(
-                      fontSize: 12,
-                      color:
-                      Color(
-                        0xFF153B60,
-                      ),
-                      fontWeight:
-                      FontWeight.w500,
-                    ),
-
-                  ),
-
-                ),
-
-              ),
-
-            ),
-
-
-          // ========================================================
-          // NO RESULTS
-          // ========================================================
-
-          if (
-          !isLoading &&
-              errorMessage == null &&
-              _displayedStations.isEmpty
-          )
-
-            Positioned(
-
-              left: 20,
-
-              right: 20,
-
-              bottom: 20,
-
-              child: Container(
-
-                padding:
-                const EdgeInsets
-                    .all(
-                  14,
-                ),
-
-                decoration:
-                BoxDecoration(
-
-                  color:
-                  Colors.white,
-
-                  borderRadius:
-                  BorderRadius
-                      .circular(
-                    20,
-                  ),
-
-                  boxShadow: [
-
-                    BoxShadow(
-
-                      color:
-                      Colors.black
-                          .withAlpha(
-                        20,
-                      ),
-
-                      blurRadius: 8,
-
-                    ),
-
-                  ],
-
-                ),
-
-                child: const Center(
-
-                  child: Text(
-                    'No fuel stations found.',
-                    style:
-                    TextStyle(
-                      color:
-                      Colors.grey,
-                    ),
-                  ),
-
-                ),
-
-              ),
-
-            ),
-
         ],
-
       ),
-
     );
   }
 }
