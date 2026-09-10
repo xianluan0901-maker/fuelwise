@@ -634,7 +634,7 @@ class _FuelCalculatorScreenState extends State<FuelCalculatorScreen> {
         if (_alternativePrice) ...[
           const SizedBox(height: 6),
           const Text(
-            'Payment may use a different price.',
+            'Payment may use a different price based on station selected.',
             style: TextStyle(color: _muted, fontSize: 12),
           ),
         ],

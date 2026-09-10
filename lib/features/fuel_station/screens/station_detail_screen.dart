@@ -1,5 +1,3 @@
-// features/fuel_station/screens/station_detail_screen.dart
-
 import 'package:flutter/material.dart';
 import '../models/fuel_station_model.dart';
 import '../services/fuel_station_service.dart';
@@ -38,27 +36,12 @@ class _StationDetailScreenState
     _loadDetails();
   }
 
-  // ============================================================
-  // LOAD GOOGLE PLACE DETAILS
-  // ============================================================
-
   Future<void> _loadDetails() async {
     try {
       final result =
       await widget.service.getStationDetails(
         widget.station.placeId,
       );
-
-      final photos = result['photos'] as List<dynamic>?;
-
-      if (photos != null && photos.isNotEmpty) {
-        final photoName = photos.first['name'].toString();
-        final fullUrl = widget.service.getPhotoUrl(photoName);
-
-        print('🖼️ COMPLETE PHOTO URL: $fullUrl');
-      } else {
-        print('❌ NO PHOTO FOUND');
-      }
 
       setState(() {
         details = result;
@@ -80,10 +63,6 @@ class _StationDetailScreenState
       );
     }
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -107,8 +86,6 @@ class _StationDetailScreenState
     details?['regularOpeningHours']
     ?['weekdayDescriptions'];
 
-    final photos =
-    details?['photos'] as List<dynamic>?;
 
     return Scaffold(
       appBar: AppBar(
@@ -148,52 +125,7 @@ class _StationDetailScreenState
           crossAxisAlignment:
           CrossAxisAlignment.start,
           children: [
-            // ==================================================
-            // STATION PHOTO
-            // ==================================================
 
-            if (photos != null &&
-                photos.isNotEmpty)
-              SizedBox(
-                height: 230,
-                width: double.infinity,
-                child: Image.network(
-                  widget.service.getPhotoUrl(
-                    photos.first['name'].toString(),
-                  ),
-                  fit: BoxFit.cover,
-                  loadingBuilder:
-                      (context, child, loadingProgress) {
-                    if (loadingProgress == null) {
-                      return child;
-                    }
-
-                    return Center(
-                      child:
-                      CircularProgressIndicator(
-                        value: loadingProgress
-                            .expectedTotalBytes !=
-                            null
-                            ? loadingProgress
-                            .cumulativeBytesLoaded /
-                            loadingProgress
-                                .expectedTotalBytes!
-                            : null,
-                      ),
-                    );
-                  },
-                  errorBuilder:
-                      (context, error, stackTrace) {
-                    return _buildPhotoFallback();
-                  },
-                ),
-              )
-            else
-              _buildPhotoFallback(),
-
-            // ==================================================
-            // STATION INFORMATION
-            // ==================================================
 
             Padding(
               padding: const EdgeInsets.all(20),
@@ -259,10 +191,6 @@ class _StationDetailScreenState
 
                   const SizedBox(height: 28),
 
-                  // ==================================================
-                  // OPENING HOURS
-                  // ==================================================
-
                   const Text(
                     'Opening Hours',
                     style: TextStyle(
@@ -294,10 +222,6 @@ class _StationDetailScreenState
                     ),
 
                   const SizedBox(height: 30),
-
-                  // ==================================================
-                  // FAVOURITE BUTTON
-                  // ==================================================
 
                   SizedBox(
                     width: double.infinity,
@@ -380,10 +304,6 @@ class _StationDetailScreenState
 
                   const SizedBox(height: 12),
 
-                  // ==================================================
-                  // PAYMENT BUTTON
-                  // ==================================================
-
                   SizedBox(
                     width: double.infinity,
                     height: 52,
@@ -435,25 +355,6 @@ class _StationDetailScreenState
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // PHOTO FALLBACK
-  // ============================================================
-
-  Widget _buildPhotoFallback() {
-    return Container(
-      height: 230,
-      width: double.infinity,
-      color: Colors.grey[200],
-      child: const Center(
-        child: Icon(
-          Icons.local_gas_station,
-          size: 70,
-          color: Colors.grey,
         ),
       ),
     );

@@ -1,5 +1,3 @@
-// features/fuel_station/models/favorite_model.dart
-
 import '../models/fuel_station_model.dart';
 
 class Favorite {

@@ -1,5 +1,3 @@
-// features/fuel_station/screens/favourite_edit_screen.dart
-
 import 'package:flutter/material.dart';
 import '../models/favourite_model.dart';
 
@@ -84,9 +82,6 @@ class _FavoriteEditScreenState
             crossAxisAlignment:
             CrossAxisAlignment.start,
             children: [
-              // ==================================================
-              // ORIGINAL NAME
-              // ==================================================
 
               const Text(
                 'Original Name',
@@ -107,10 +102,6 @@ class _FavoriteEditScreenState
 
               const Divider(height: 30),
 
-              // ==================================================
-              // CUSTOM NAME
-              // ==================================================
-
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -127,10 +118,6 @@ class _FavoriteEditScreenState
               ),
 
               const SizedBox(height: 16),
-
-              // ==================================================
-              // PERSONAL NOTE
-              // ==================================================
 
               TextField(
                 controller: _noteController,
@@ -149,10 +136,6 @@ class _FavoriteEditScreenState
               ),
 
               const SizedBox(height: 20),
-
-              // ==================================================
-              // SAVE CHANGES BUTTON
-              // ==================================================
 
               SizedBox(
                 width: double.infinity,

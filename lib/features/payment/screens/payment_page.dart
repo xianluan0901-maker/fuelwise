@@ -166,7 +166,7 @@ class _PaymentPageState extends State<PaymentPage> {
           _pricePerLiter.isFinite &&
           _pricePerLiter > 0 &&
           _liters.isFinite &&
-          _liters > 0 &&
+          _liters > 1 &&
           _liters <= _maxLiters;
 
 
@@ -1221,14 +1221,10 @@ class _PaymentPageState extends State<PaymentPage> {
   // ============================================================
   // Liters Section
   // ============================================================
-
   Widget _buildLitersSection() {
     final bool hasError =
         _liters > _maxLiters ||
-            (
-                _liters <= 0 &&
-                    _litersController.text.isNotEmpty
-            );
+            (_liters < 1 && _litersController.text.isNotEmpty);
 
     return Container(
       padding: const EdgeInsets.all(17),
@@ -1253,8 +1249,7 @@ class _PaymentPageState extends State<PaymentPage> {
       ),
 
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
           Row(
@@ -1283,12 +1278,16 @@ class _PaymentPageState extends State<PaymentPage> {
           TextField(
             controller: _litersController,
 
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: true,
+            ),
 
             inputFormatters: [
               FilteringTextInputFormatter.allow(
                 RegExp(r'^\d*\.?\d{0,2}$'),
               ),
+
+              LengthLimitingTextInputFormatter(5),
             ],
 
             decoration: InputDecoration(
@@ -1299,10 +1298,8 @@ class _PaymentPageState extends State<PaymentPage> {
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
 
-              enabledBorder:
-              OutlineInputBorder(
-                borderRadius:
-                BorderRadius.circular(13),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
 
                 borderSide: BorderSide(
                   color: hasError
@@ -1311,10 +1308,8 @@ class _PaymentPageState extends State<PaymentPage> {
                 ),
               ),
 
-              focusedBorder:
-              OutlineInputBorder(
-                borderRadius:
-                BorderRadius.circular(13),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
 
                 borderSide: BorderSide(
                   color: hasError
@@ -1329,11 +1324,9 @@ class _PaymentPageState extends State<PaymentPage> {
               _liters > _maxLiters
                   ? 'Maximum capacity is '
                   '${_maxLiters.toStringAsFixed(0)}L'
-                  : _liters <= 0 &&
-                  _litersController
-                      .text
-                      .isNotEmpty
-                  ? 'Please enter a valid amount'
+                  : _liters < 1 &&
+                  _litersController.text.isNotEmpty
+                  ? 'Minimum amount is 1L'
                   : null,
 
               errorStyle: const TextStyle(
@@ -1343,19 +1336,15 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
 
             onChanged: (value) {
-              final parsed =
-              double.tryParse(value);
+              final parsed = double.tryParse(value);
 
-              if (parsed != null &&
-                  parsed > 0) {
-                setState(() {
+              setState(() {
+                if (parsed != null) {
                   _liters = parsed;
-                });
-              } else {
-                setState(() {
+                } else {
                   _liters = 0;
-                });
-              }
+                }
+              });
 
               _updatePoints();
             },
@@ -1364,8 +1353,7 @@ class _PaymentPageState extends State<PaymentPage> {
           const SizedBox(height: 8),
 
           Row(
-            mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
             children: [
               Text(
@@ -1375,7 +1363,7 @@ class _PaymentPageState extends State<PaymentPage> {
                   fontSize: 12,
 
                   color:
-                  _liters > 0 &&
+                  _liters >= 1 &&
                       _liters <= _maxLiters
                       ? const Color(0xFF718096)
                       : Colors.red,
